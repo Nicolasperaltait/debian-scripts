@@ -1,0 +1,21 @@
+name: Shell validation
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Bash syntax
+        run: find . -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
+      - name: ShellCheck
+        run: find . -type f -name '*.sh' -print0 | xargs -0 shellcheck
+      - name: Public safety
+        run: bash tests/public-safety.sh
+      - name: Smoke tests
+        run: bash tests/smoke.sh

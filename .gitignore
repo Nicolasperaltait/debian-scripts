@@ -1,0 +1,5 @@
+*.log
+*.bak.*
+.tmp/
+/instalar-*.sh
+/legacy-source/

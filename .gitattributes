@@ -1,0 +1,9 @@
+*.sh text eol=lf
+*.md text eol=lf
+*.conf text eol=lf
+*.sha256 text eol=lf
+
+# Preserve recovered legacy files byte-for-byte.
+legacy-source/** -text
+legacy-source/README.md text eol=lf
+legacy-source/MANIFEST.sha256 text eol=lf
