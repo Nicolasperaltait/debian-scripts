@@ -116,6 +116,18 @@ sudo bash main.sh \
 firewall, actualizaciones automáticas y hardening están recomendados; omitirlos
 requiere una segunda confirmación y queda registrado en el informe.
 
+Si OpenSSH ya está activo, el instalador exige una regla de origen antes de
+habilitar UFW. En ejecuciones no interactivas, definí una IP o red CIDR segura:
+
+```bash
+sudo env FIREWALL_SSH_SOURCE=192.0.2.10/32 bash main.sh \
+  --user operador --mode cli --profile media \
+  --components firewall,auto-updates,hardening,audit --yes
+```
+
+`FIREWALL_SSH_SOURCE=any` conserva acceso desde cualquier origen, pero solo
+debe usarse conscientemente y aplica limitación de intentos.
+
 ## Flujo principal
 
 ```text

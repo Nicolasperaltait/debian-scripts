@@ -9,57 +9,14 @@ init_ui
 
 EXTRA_LIST="${1:-}"
 
-validate_firewall_source() {
-  local value="${1:-}" address prefix octet
-  local -a octets=()
-
-  address="${value%/*}"
-  [[ "$value" == */* ]] && prefix="${value##*/}" || prefix=""
-
-  if [[ "$address" == *:* ]]; then
-    [[ "$address" =~ ^[0-9A-Fa-f:]+$ ]] || return 1
-    [[ -z "$prefix" || ("$prefix" =~ ^[0-9]+$ && "$prefix" -le 128) ]]
-    return
-  fi
-
-  IFS=. read -r -a octets <<<"$address"
-  ((${#octets[@]} == 4)) || return 1
-  for octet in "${octets[@]}"; do
-    [[ "$octet" =~ ^[0-9]+$ && "$octet" -le 255 ]] || return 1
-  done
-  [[ -z "$prefix" || ("$prefix" =~ ^[0-9]+$ && "$prefix" -le 32) ]]
-}
-
-choose_firewall_source() {
-  local service="$1"
-  local option source current_source
-
-  if [[ "$service" == "SSH" && -n "${SSH_CONNECTION:-}" ]]; then
-    current_source="${SSH_CONNECTION%% *}"
-    info "Conexión SSH actual detectada desde: $current_source" >&2
-  fi
-
-  option="$(choose "Acceso de red para $service" \
-    "Restringir a una IP o red CIDR (recomendado)" \
-    "Permitir cualquier origen con limitación de intentos")"
-  if [[ "$option" == "1" ]]; then
-    while true; do
-      read -r -p "IP o red CIDR permitida (ej. 192.0.2.10/32): " source
-      validate_firewall_source "$source" && { printf '%s' "$source"; return; }
-      warn "Ingresá una dirección IP o red CIDR válida."
-    done
-  fi
-
-  warn "$service quedará accesible desde cualquier origen."
-  confirm "¿Confirmás esta exposición?" "n" ||
-    fail "Configuración de $service cancelada."
-  printf 'any'
-}
-
 prepare_remote_firewall() {
   apt_install ufw
+}
+
+enable_remote_firewall() {
   run ufw default deny incoming
   run ufw default allow outgoing
+  run ufw --force enable
 }
 
 install_ssh() {
@@ -73,7 +30,7 @@ install_ssh() {
   else
     run ufw limit from "$source" to any port 22 proto tcp comment "SSH restringido"
   fi
-  run ufw --force enable
+  enable_remote_firewall
 }
 
 install_bluetooth() {
@@ -245,7 +202,7 @@ install_rdp() {
   else
     run ufw limit from "$source" to any port 3389 proto tcp comment "RDP restringido"
   fi
-  run ufw --force enable
+  enable_remote_firewall
 }
 
 install_clamav() {

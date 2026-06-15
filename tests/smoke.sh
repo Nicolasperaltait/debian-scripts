@@ -236,12 +236,18 @@ printf '1\n192.0.2.10/32\n' |
   bash "$ROOT_DIR/scripts/optional/install.sh" ssh >"$critical_output" 2>&1
 grep -q 'ufw limit from 192.0.2.10/32 to any port 22 proto tcp' "$critical_output"
 grep -q 'ufw --force enable' "$critical_output"
+ssh_rule_line="$(grep -n 'ufw limit from 192.0.2.10/32 to any port 22 proto tcp' "$critical_output" | cut -d: -f1)"
+default_deny_line="$(grep -n 'ufw default deny incoming' "$critical_output" | cut -d: -f1)"
+((ssh_rule_line < default_deny_line))
 
 printf '1\n192.0.2.0/24\n' |
   DRY_RUN=1 TARGET_USER=operador INSTALL_MODE=gui DESKTOP=lxqt PROFILE=media NO_COLOR=1 \
   bash "$ROOT_DIR/scripts/optional/install.sh" rdp >"$critical_output" 2>&1
 grep -q 'ufw limit from 192.0.2.0/24 to any port 3389 proto tcp' "$critical_output"
 grep -q 'ufw --force enable' "$critical_output"
+rdp_rule_line="$(grep -n 'ufw limit from 192.0.2.0/24 to any port 3389 proto tcp' "$critical_output" | cut -d: -f1)"
+default_deny_line="$(grep -n 'ufw default deny incoming' "$critical_output" | cut -d: -f1)"
+((rdp_rule_line < default_deny_line))
 
 printf 'omv.example.test\ndatos\nusuario\nWORKGROUP\ns\n' |
   DRY_RUN=1 TARGET_USER=operador INSTALL_MODE=gui PROFILE=media NO_COLOR=1 \
@@ -288,6 +294,33 @@ SSH_CONNECTION='192.0.2.25 50000 192.0.2.50 22' DRY_RUN=1 NO_COLOR=1 \
 grep -q 'ufw limit from 192.0.2.25 to any port 22 proto tcp' "$ssh_baseline_output"
 ! grep -q 'ufw limit OpenSSH' "$ssh_baseline_output"
 rm -f "$ssh_baseline_output"
+
+ssh_baseline_output="$(mktemp)"
+ssh_baseline_bin="$(mktemp -d)"
+cat >"$ssh_baseline_bin/systemctl" <<'EOF'
+#!/usr/bin/env bash
+[[ "${1:-}" == "is-active" && "${3:-}" == "ssh" ]]
+EOF
+chmod +x "$ssh_baseline_bin/systemctl"
+PATH="$ssh_baseline_bin:$PATH" FIREWALL_SSH_SOURCE='192.0.2.0/24' \
+  DRY_RUN=1 NO_COLOR=1 \
+  bash "$ROOT_DIR/scripts/security/baseline.sh" >"$ssh_baseline_output" 2>&1
+grep -q 'ufw limit from 192.0.2.0/24 to any port 22 proto tcp' "$ssh_baseline_output"
+grep -q 'ufw --force enable' "$ssh_baseline_output"
+ssh_rule_line="$(grep -n 'ufw limit from 192.0.2.0/24 to any port 22 proto tcp' "$ssh_baseline_output" | cut -d: -f1)"
+default_deny_line="$(grep -n 'ufw default deny incoming' "$ssh_baseline_output" | cut -d: -f1)"
+((ssh_rule_line < default_deny_line))
+
+if PATH="$ssh_baseline_bin:$PATH" DRY_RUN=1 NO_COLOR=1 \
+  bash "$ROOT_DIR/scripts/security/baseline.sh" </dev/null \
+  >"$ssh_baseline_output" 2>&1; then
+  echo "ERROR: UFW se activó sin una regla SSH en modo no interactivo" >&2
+  exit 1
+fi
+grep -q 'Se rechazó activar UFW sin una regla SSH' "$ssh_baseline_output"
+! grep -q 'ufw --force enable' "$ssh_baseline_output"
+rm -f "$ssh_baseline_output"
+rm -rf "$ssh_baseline_bin"
 
 for debian_version in 12 13; do
   c200_output="$(mktemp)"

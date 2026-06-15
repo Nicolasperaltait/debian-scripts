@@ -52,6 +52,70 @@ confirm() {
   [[ "$answer" =~ ^[sS]$ ]]
 }
 
+validate_firewall_source() {
+  local value="${1:-}" address prefix octet
+  local -a octets=()
+
+  address="${value%/*}"
+  [[ "$value" == */* ]] && prefix="${value##*/}" || prefix=""
+
+  if [[ "$address" == *:* ]]; then
+    [[ "$address" =~ ^[0-9A-Fa-f:]+$ ]] || return 1
+    [[ -z "$prefix" || ("$prefix" =~ ^[0-9]+$ && "$prefix" -le 128) ]]
+    return
+  fi
+
+  IFS=. read -r -a octets <<<"$address"
+  ((${#octets[@]} == 4)) || return 1
+  for octet in "${octets[@]}"; do
+    [[ "$octet" =~ ^[0-9]+$ && "$octet" -le 255 ]] || return 1
+  done
+  [[ -z "$prefix" || ("$prefix" =~ ^[0-9]+$ && "$prefix" -le 32) ]]
+}
+
+current_ssh_source() {
+  local connection="${SSH_CONNECTION:-${SSH_CLIENT:-}}" source
+
+  [[ -n "$connection" ]] || return 1
+  source="${connection%% *}"
+  validate_firewall_source "$source" || return 1
+  printf '%s' "$source"
+}
+
+choose_firewall_source() {
+  local service="$1"
+  local allow_cancel="${2:-0}"
+  local option source current_source
+  local -a options=(
+    "Restringir a una IP o red CIDR (recomendado)"
+    "Permitir cualquier origen con limitación de intentos"
+  )
+
+  if [[ "$service" == "SSH" ]] && current_source="$(current_ssh_source)"; then
+    info "Conexión SSH actual detectada desde: $current_source" >&2
+  fi
+  [[ "$allow_cancel" -eq 1 ]] &&
+    options+=("Cancelar antes de activar el firewall")
+
+  option="$(choose "Acceso de red para $service" "${options[@]}")"
+  if [[ "$option" == "1" ]]; then
+    while true; do
+      read -r -p "IP o red CIDR permitida (ej. 192.0.2.10/32): " source
+      validate_firewall_source "$source" && { printf '%s' "$source"; return; }
+      warn "Ingresá una dirección IP o red CIDR válida."
+    done
+  fi
+  if [[ "$option" == "2" ]]; then
+    warn "$service quedará accesible desde cualquier origen."
+    confirm "¿Confirmás esta exposición?" "n" ||
+      fail "Configuración de $service cancelada."
+    printf 'any'
+    return
+  fi
+
+  printf 'cancel'
+}
+
 print_banner() {
   printf '%s\n' "${C_CYAN}${C_BOLD}"
   printf '  ╔══════════════════════════════════════════════╗\n'
