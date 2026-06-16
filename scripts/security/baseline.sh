@@ -7,6 +7,13 @@ source "$ROOT_DIR/lib/common.sh"
 source "$ROOT_DIR/config/packages.conf"
 init_ui
 
+# Install and start SSH before UFW configuration so that the firewall
+# source detection below can observe the running service.
+if [[ "${ENABLE_SSH:-1}" -eq 1 ]]; then
+  apt_install openssh-server
+  run systemctl enable --now ssh
+fi
+
 if [[ "${ENABLE_AUTO_UPDATES:-1}" -eq 1 ]]; then
   read -r -a auto_update_packages <<<"$AUTO_UPDATE_PACKAGES"
   apt_install "${auto_update_packages[@]}"
@@ -51,6 +58,17 @@ if [[ "${ENABLE_FIREWALL:-1}" -eq 1 ]]; then
   run ufw default deny incoming
   run ufw default allow outgoing
   run ufw --force enable
+
+  # Verify sshd is reachable after firewall activation.
+  if [[ "${ENABLE_SSH:-1}" -eq 1 ]] || systemctl is-active --quiet ssh 2>/dev/null; then
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      info "DRY-RUN: verificar que sshd escucha en puerto 22"
+    elif ss -tlnp 2>/dev/null | grep -q ':22 '; then
+      ok "SSH escuchando en puerto 22"
+    else
+      warn "UFW activo pero sshd no está escuchando en puerto 22"
+    fi
+  fi
 else
   warn "Firewall UFW omitido por decisión explícita del usuario."
 fi

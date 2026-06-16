@@ -144,6 +144,8 @@ wizard_components() {
     "¿Configurar actualizaciones automáticas de seguridad?" "s" 1
   wizard_component ENABLE_HARDENING \
     "¿Aplicar hardening conservador (AppArmor, sysctl y protección SSH)?" "s" 1
+  wizard_component ENABLE_SSH \
+    "¿Instalar y habilitar OpenSSH para acceso remoto desde otra máquina?" "s" 1
   wizard_component ENABLE_AUDIT \
     "¿Ejecutar una auditoría final de salud, servicios, red y puertos?" "s"
 }
@@ -153,6 +155,8 @@ wizard_extras() {
   local item label
   section "Módulos opcionales" >&2
   while IFS='|' read -r item label; do
+    # Skip ssh if it is already managed as a main component.
+    [[ "$item" == "ssh" && "${ENABLE_SSH:-1}" -eq 1 ]] && continue
     if confirm "¿Instalar $label ($item)?" "n"; then result+=("$item"); fi
   done <<'EOF'
 ssh|OpenSSH y regla de firewall
@@ -213,6 +217,7 @@ show_plan() {
   printf '  Firewall:      %s\n' "$([[ "$ENABLE_FIREWALL" -eq 1 ]] && echo "$enabled_text" || echo "$disabled_text")"
   printf '  Auto-updates:  %s\n' "$([[ "$ENABLE_AUTO_UPDATES" -eq 1 ]] && echo "$enabled_text" || echo "$disabled_text")"
   printf '  Hardening:     %s\n' "$([[ "$ENABLE_HARDENING" -eq 1 ]] && echo "$enabled_text" || echo "$disabled_text")"
+  printf '  SSH:           %s\n' "$([[ "$ENABLE_SSH" -eq 1 ]] && echo "$enabled_text" || echo "$disabled_text")"
   printf '  Auditoría:     %s\n' "$([[ "$ENABLE_AUDIT" -eq 1 ]] && echo "$enabled_text" || echo "$disabled_text")"
   printf '  Ejecución:     %s\n' "$([[ "$DRY_RUN" -eq 1 ]] && echo simulación || echo real)"
 }

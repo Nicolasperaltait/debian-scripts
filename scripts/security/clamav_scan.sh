@@ -140,7 +140,7 @@ if ! flock -n 9; then
   exit 0
 fi
 
-# A partir de acá, sí consideramos que “hizo trabajo” y queremos log+finalize
+# A partir de acá, sí consideramos que "hizo trabajo" y queremos log+finalize
 DID_WORK=1
 
 log "Inicio ClamAV (--${ACTION}) (run_id=${RUN_ID})"
@@ -215,10 +215,6 @@ set -e
 # 0 = OK, 1 = virus encontrado, 2 = error
 if [[ "$rc" -eq 1 ]]; then
   log "ALERTA: ClamAV encontró archivos infectados (clamscan_exit=1). Revisar log."
-  # cron-friendly: en quiet no “falla” el job, pero deja evidencia en el log
-  if [[ "$MODE" == "quiet" ]]; then
-    rc=0
-  fi
 elif [[ "$rc" -ne 0 ]]; then
   exit "$rc"
 fi

@@ -48,6 +48,8 @@ run_case() {
   [[ -f "$report_file" ]]
   grep -q '^# Informe de instalación Debian Scripts$' "$report_file"
   grep -Eq '^\| Seguridad +\| Hardening reforzado +\| Simulado +\|$' "$report_file"
+  grep -Eq '^\| Seguridad +\| OpenSSH servidor +\| Simulado +\|$' "$report_file"
+  grep -Eq '^\| Personalización +\| Configuración Bash +\| Simulado +\|$' "$report_file"
   grep -Eq '^\| Personalización +\| Zsh y modificación de terminal +\| Simulado +\|$' \
     "$report_file"
   grep -Fq "Informe Markdown: $report_file" "$output"
@@ -66,6 +68,13 @@ if DEBIAN_SCRIPTS_TEST=1 NO_COLOR=1 bash "$ROOT_DIR/main.sh" \
   --dry-run --user 'Usuario Invalido' --mode cli --profile media --yes \
   >/dev/null 2>&1; then
   echo "ERROR: se aceptó un usuario inválido" >&2
+  exit 1
+fi
+
+if DEBIAN_SCRIPTS_TEST=1 NO_COLOR=1 bash "$ROOT_DIR/main.sh" \
+  --dry-run --user root --mode cli --profile media --yes \
+  >/dev/null 2>&1; then
+  echo "ERROR: se aceptó el usuario reservado 'root'" >&2
   exit 1
 fi
 
@@ -203,7 +212,11 @@ grep -q 'reduce la postura de seguridad' "$wizard_security_output"
 rm -f "$wizard_security_output"
 
 wizard_components_output="$(mktemp)"
-printf 'n\nn\nn\nn\ns\n\nn\nn\n\n' |
+# Inputs (GUI mode, no cli-tools prompt):
+#   n=tools, n=desktop, n=optimization, n=firewall, s=confirm-skip-firewall,
+#   ""=auto-updates(default s), n=hardening, n=confirm-skip-hardening,
+#   ""=ssh(default s), ""=audit(default s)
+printf 'n\nn\nn\nn\ns\n\nn\nn\n\n\n' |
   NO_COLOR=1 bash -c '
     source "'"$ROOT_DIR"'/lib/common.sh"
     source "'"$ROOT_DIR"'/lib/wizard.sh"
@@ -218,14 +231,15 @@ printf 'n\nn\nn\nn\ns\n\nn\nn\n\n' |
     ENABLE_FIREWALL=1
     ENABLE_AUTO_UPDATES=1
     ENABLE_HARDENING=1
+    ENABLE_SSH=1
     ENABLE_AUDIT=0
     wizard_components
-    printf "%s:%s:%s:%s:%s:%s:%s:%s\n" \
+    printf "%s:%s:%s:%s:%s:%s:%s:%s:%s\n" \
       "$INSTALL_BASE_TOOLS" "$INSTALL_CLI_TOOLS" "$ENABLE_DESKTOP" \
       "$ENABLE_OPTIMIZATION" "$ENABLE_FIREWALL" "$ENABLE_AUTO_UPDATES" \
-      "$ENABLE_HARDENING" "$ENABLE_AUDIT"
+      "$ENABLE_HARDENING" "$ENABLE_SSH" "$ENABLE_AUDIT"
   ' >"$wizard_components_output" 2>&1
-grep -q '^0:0:0:0:0:1:1:1$' "$wizard_components_output"
+grep -q '^0:0:0:0:0:1:1:1:1$' "$wizard_components_output"
 rm -f "$wizard_components_output"
 
 critical_output="$(mktemp)"

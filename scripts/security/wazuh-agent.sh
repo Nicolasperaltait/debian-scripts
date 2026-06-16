@@ -47,7 +47,18 @@ fi
 TEMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
+PACKAGES_URL="https://packages.wazuh.com/4.x/apt/dists/stable/main/binary-${ARCH}/Packages"
+wget --https-only --output-document "$TEMP_DIR/Packages" "$PACKAGES_URL"
+expected_sha256="$(grep -A10 "Filename: pool/main/w/wazuh-agent/${DEB_FILE}" \
+  "$TEMP_DIR/Packages" | grep '^SHA256:' | awk '{print $2}' | head -1)"
+[[ -n "$expected_sha256" ]] ||
+  fail "No se encontró SHA256 para $DEB_FILE en el índice de paquetes."
+
 wget --https-only --output-document "$TEMP_DIR/$DEB_FILE" "$DOWNLOAD_URL"
+actual_sha256="$(sha256sum "$TEMP_DIR/$DEB_FILE" | awk '{print $1}')"
+[[ "$actual_sha256" == "$expected_sha256" ]] ||
+  fail "SHA256 no coincide para $DEB_FILE — paquete posiblemente comprometido."
+
 WAZUH_MANAGER="$MANAGER" dpkg -i "$TEMP_DIR/$DEB_FILE"
 systemctl daemon-reload
 systemctl enable --now wazuh-agent

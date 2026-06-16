@@ -20,6 +20,10 @@ enable_remote_firewall() {
 }
 
 install_ssh() {
+  if [[ "${ENABLE_SSH:-0}" -eq 1 ]]; then
+    info "OpenSSH ya gestionado como componente base; se omite el extra."
+    return 0
+  fi
   local source
   source="$(choose_firewall_source "SSH")"
   apt_install openssh-server

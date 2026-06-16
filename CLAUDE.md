@@ -53,7 +53,7 @@ config/packages.conf      # Package lists consumed by install scripts
 tests/
   smoke.sh                # Non-interactive flag/mode combinations
   public-safety.sh        # Checks for secrets, personal data, private IPs in tracked files
-instalar-operador.sh      # Standalone admin-lab setup script (independent of main.sh)
+instalar-*.sh             # One-liner bootstrap launcher (clones repo and runs wizard)
 ```
 
 **`run_module()` contract:** each module is called as a subprocess with all state passed as environment variables (`DRY_RUN`, `LOG_FILE`, `TARGET_USER`, `PROFILE`, `EXTRAS`, `ARCH`, `DEBIAN_VERSION`, etc.). Modules must not `source` lib files themselves — they receive state only through env vars.

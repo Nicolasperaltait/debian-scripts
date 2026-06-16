@@ -33,6 +33,7 @@ ENABLE_AUTO_UPDATES=1
 ENABLE_DESKTOP=0
 ENABLE_OPTIMIZATION=1
 ENABLE_HARDENING=1
+ENABLE_SSH=1
 ENABLE_AUDIT=0
 ASSUME_YES=0
 CURRENT_STEP=0
@@ -68,7 +69,7 @@ Extras:
 
 Componentes principales:
   tools, cli-tools, desktop, optimization, firewall, auto-updates,
-  hardening, audit
+  hardening, ssh, audit
 EOF
 }
 
@@ -114,6 +115,7 @@ set_component_state() {
     firewall) ENABLE_FIREWALL="$state" ;;
     auto-updates) ENABLE_AUTO_UPDATES="$state" ;;
     hardening) ENABLE_HARDENING="$state" ;;
+    ssh) ENABLE_SSH="$state" ;;
     audit) ENABLE_AUDIT="$state" ;;
     *) fail "Componente principal inválido: $component" ;;
   esac
@@ -141,6 +143,7 @@ set_component_defaults() {
   ENABLE_DESKTOP=0
   ENABLE_OPTIMIZATION=1
   ENABLE_HARDENING=1
+  ENABLE_SSH=1
   ENABLE_AUDIT=0
 
   if [[ "$INSTALL_MODE" == "cli" ]]; then
@@ -173,6 +176,7 @@ apply_component_selection() {
     ENABLE_DESKTOP=0
     ENABLE_OPTIMIZATION=0
     ENABLE_HARDENING=0
+    ENABLE_SSH=0
     ENABLE_AUDIT=0
     apply_component_list "$COMPONENTS_ONLY" 1
   elif [[ "$COMPONENTS_SKIP_SET" -eq 1 ]]; then
@@ -180,7 +184,7 @@ apply_component_selection() {
   fi
 
   [[ "$INSTALL_MODE" == "gui" ]] || ENABLE_DESKTOP=0
-  if [[ "$ENABLE_FIREWALL" -eq 1 || "$ENABLE_AUTO_UPDATES" -eq 1 ]]; then
+  if [[ "$ENABLE_FIREWALL" -eq 1 || "$ENABLE_AUTO_UPDATES" -eq 1 || "$ENABLE_SSH" -eq 1 ]]; then
     ENABLE_SECURITY_BASELINE=1
   else
     ENABLE_SECURITY_BASELINE=0
@@ -239,6 +243,7 @@ run_module() {
     EXTRAS="$EXTRAS" UPGRADE_SYSTEM="$UPGRADE_SYSTEM" \
     INSTALL_BASE_TOOLS="$INSTALL_BASE_TOOLS" INSTALL_CLI_TOOLS="$INSTALL_CLI_TOOLS" \
     ENABLE_FIREWALL="$ENABLE_FIREWALL" ENABLE_AUTO_UPDATES="$ENABLE_AUTO_UPDATES" \
+    ENABLE_SSH="$ENABLE_SSH" \
     ARCH="$ARCH" DEBIAN_VERSION="$DEBIAN_VERSION" \
     bash "$script" "$@"; then
     ok "$label"
@@ -255,7 +260,10 @@ report_optional_modules() {
   IFS=',' read -r -a extras <<<"$EXTRAS"
   for extra in "${extras[@]}"; do
     case "$extra" in
-      ssh) category="Seguridad"; component="OpenSSH y protección UFW" ;;
+      ssh)
+        [[ "${ENABLE_SSH:-0}" -eq 0 ]] || continue
+        category="Seguridad"; component="OpenSSH y protección UFW"
+        ;;
       bluetooth) category="Hardware"; component="Bluetooth" ;;
       flatpak) category="Aplicaciones"; component="Flatpak y repositorio Flathub" ;;
       apps) category="Aplicaciones"; component="Aplicaciones Flatpak" ;;
@@ -356,7 +364,7 @@ main() {
   apply_component_selection
   if [[ "$ASSUME_YES" -eq 0 ]]; then
     wizard_components
-    if [[ "$ENABLE_FIREWALL" -eq 1 || "$ENABLE_AUTO_UPDATES" -eq 1 ]]; then
+    if [[ "$ENABLE_FIREWALL" -eq 1 || "$ENABLE_AUTO_UPDATES" -eq 1 || "$ENABLE_SSH" -eq 1 ]]; then
       ENABLE_SECURITY_BASELINE=1
     else
       ENABLE_SECURITY_BASELINE=0
@@ -377,7 +385,7 @@ main() {
     }
   fi
 
-  TOTAL_STEPS=1
+  TOTAL_STEPS=2
   [[ "$ENABLE_SECURITY_BASELINE" -eq 1 ]] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
   [[ "$ENABLE_DESKTOP" -eq 1 ]] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
   [[ "$ENABLE_OPTIMIZATION" -eq 1 ]] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
@@ -412,6 +420,9 @@ main() {
     report_add "Sistema" "Actualización completa de paquetes" "Omitido"
   fi
 
+  run_module "Personalización Bash" "$ROOT_DIR/scripts/personalizacion_bash.sh"
+  report_add "Personalización" "Configuración Bash"
+
   if [[ "$ENABLE_SECURITY_BASELINE" -eq 1 ]]; then
     run_module "Seguridad base" "$ROOT_DIR/scripts/security/baseline.sh"
   fi
@@ -424,6 +435,11 @@ main() {
     report_add "Seguridad" "Actualizaciones automáticas"
   else
     report_add "Seguridad" "Actualizaciones automáticas" "Omitido"
+  fi
+  if [[ "$ENABLE_SSH" -eq 1 ]]; then
+    report_add "Seguridad" "OpenSSH servidor"
+  else
+    report_add "Seguridad" "OpenSSH servidor" "Omitido"
   fi
 
   if [[ "$ENABLE_DESKTOP" -eq 1 ]]; then

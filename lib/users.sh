@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 
 validate_username() {
-  [[ "${1:-}" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]
+  local name="${1:-}"
+  [[ "$name" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || return 1
+  case "$name" in
+    root|bin|daemon|adm|lp|sync|shutdown|halt|mail|operator|games|ftp|nobody|\
+    www-data|backup|list|irc|gnats|man|proxy|news|uucp|sshd|systemd-network|\
+    systemd-resolve|messagebus|_apt|systemd-timesync|ntp|dnsmasq)
+      return 1 ;;
+  esac
 }
 
 set_user_password() {
