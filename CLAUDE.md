@@ -76,3 +76,11 @@ instalar-*.sh             # One-liner bootstrap launcher (clones repo and runs w
 - `PasswordAuthentication` in sshd must not be modified
 - OMV, RDP, Wazuh require explicit selection — never added by default
 - `legacy-source/` and `.tmp/` must never be committed to tracked history (`public-safety.sh` enforces this)
+
+## Git closure
+
+After a task produces real changes and the applicable validation passes, create a descriptive
+local commit for that task. Review the staged set first: it must contain only the task's paths.
+In a dirty worktree, stage exact paths and leave pre-existing changes out; never use `git add .`
+or `git add -A`. Do not commit when there are no changes, validation fails, or the scope cannot
+be isolated safely; report the blocker. Never push without explicit user authorization.
