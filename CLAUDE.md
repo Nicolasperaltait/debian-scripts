@@ -2,6 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Authority and startup (governance)
+
+[AGENTS.md](./AGENTS.md) is the authority of this repository. This file does not create independent rules nor relax those in AGENTS.md; it adds the detailed command/architecture reference for Claude. Startup order for a new session:
+
+1. [README.md](./README.md) — locate the task and the real path.
+2. [AGENTS.md](./AGENTS.md) — mandatory rules and non-negotiable security constraints.
+3. Local `AGENTS.md` of the relevant module, if any.
+4. This file and the area-specific docs under [docs/](./docs/).
+5. `git status --short` before any change.
+
+On conflict, AGENTS.md wins. See also [LLM.md](./LLM.md) for non-Claude agents.
+
 ## What this repo is
 
 Modular Bash bootstrap for Debian 12/13. A single entry point (`main.sh`) orchestrates detection, a wizard or CLI flags, and runs modules in sequence. Targets are real Debian machines; scripts must run as root via `sudo bash main.sh`.
