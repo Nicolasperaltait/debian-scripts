@@ -243,7 +243,7 @@ run_module() {
     EXTRAS="$EXTRAS" UPGRADE_SYSTEM="$UPGRADE_SYSTEM" \
     INSTALL_BASE_TOOLS="$INSTALL_BASE_TOOLS" INSTALL_CLI_TOOLS="$INSTALL_CLI_TOOLS" \
     ENABLE_FIREWALL="$ENABLE_FIREWALL" ENABLE_AUTO_UPDATES="$ENABLE_AUTO_UPDATES" \
-    ENABLE_SSH="$ENABLE_SSH" \
+    ENABLE_SSH="$ENABLE_SSH" SSH_PUBKEY="${SSH_PUBKEY:-}" \
     ARCH="$ARCH" DEBIAN_VERSION="$DEBIAN_VERSION" \
     bash "$script" "$@"; then
     ok "$label"
@@ -291,7 +291,7 @@ report_optional_modules() {
 }
 
 main() {
-  local recommended user_spec additional_user additional_role
+  local recommended user_spec additional_user additional_role _ssh_home
 
   parse_args "$@"
   init_ui
@@ -438,6 +438,16 @@ main() {
   fi
   if [[ "$ENABLE_SSH" -eq 1 ]]; then
     report_add "Seguridad" "OpenSSH servidor"
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      report_add "Seguridad" "Claves SSH autorizadas" "Simulado"
+    else
+      _ssh_home="$(getent passwd "$TARGET_USER" | cut -d: -f6 2>/dev/null || echo "")"
+      if [[ -n "$_ssh_home" && -s "$_ssh_home/.ssh/authorized_keys" ]]; then
+        report_add "Seguridad" "Claves SSH autorizadas" "Configuradas"
+      else
+        report_add "Seguridad" "Claves SSH autorizadas" "SIN CLAVE"
+      fi
+    fi
   else
     report_add "Seguridad" "OpenSSH servidor" "Omitido"
   fi

@@ -12,6 +12,41 @@ init_ui
 if [[ "${ENABLE_SSH:-1}" -eq 1 ]]; then
   apt_install openssh-server
   run systemctl enable --now ssh
+
+  if [[ -z "${TARGET_USER:-}" ]]; then
+    : # Sin usuario objetivo definido (ej. baseline standalone): omitir gestión de claves.
+  elif [[ "$DRY_RUN" -eq 1 ]]; then
+    info "DRY-RUN: verificar authorized_keys para $TARGET_USER"
+  else
+    _ssh_home="$(getent passwd "$TARGET_USER" | cut -d: -f6 2>/dev/null || echo "")"
+    if [[ -n "$_ssh_home" ]]; then
+      _auth_keys="$_ssh_home/.ssh/authorized_keys"
+      if [[ -s "$_auth_keys" ]]; then
+        _key_count="$(grep -cE '^(ssh-|ecdsa-sha2-|sk-)' "$_auth_keys" 2>/dev/null || echo 0)"
+        ok "authorized_keys: $_key_count clave(s) existente(s) para $TARGET_USER — no se modifica."
+      else
+        _pubkey="${SSH_PUBKEY:-}"
+        if [[ -z "$_pubkey" && -t 0 && "${DEBIAN_SCRIPTS_TEST:-0}" != "1" ]]; then
+          info "No hay claves en authorized_keys para $TARGET_USER."
+          if confirm "¿Querés agregar tu clave SSH pública ahora?" "s"; then
+            read -r -p "Pegá tu clave pública (ssh-ed25519 AAAA... o similar): " _pubkey
+          fi
+        fi
+        if [[ -n "$_pubkey" && "$_pubkey" =~ ^(ssh-|ecdsa-sha2-|sk-) ]]; then
+          install -d -m 0700 "$_ssh_home/.ssh"
+          chown "$TARGET_USER:$TARGET_USER" "$_ssh_home/.ssh" 2>/dev/null || true
+          printf '%s\n' "$_pubkey" >>"$_auth_keys"
+          chmod 600 "$_auth_keys"
+          chown "$TARGET_USER:$TARGET_USER" "$_auth_keys" 2>/dev/null || true
+          log_line "WRITE: $_auth_keys (clave SSH pública)"
+          ok "Clave SSH pública agregada a authorized_keys de $TARGET_USER"
+        else
+          [[ -n "$_pubkey" ]] && warn "La clave provista no parece válida (debe comenzar con ssh-, ecdsa- o sk-)."
+          warn "Sin claves en authorized_keys para $TARGET_USER — el acceso SSH requerirá autenticación por contraseña."
+        fi
+      fi
+    fi
+  fi
 fi
 
 if [[ "${ENABLE_AUTO_UPDATES:-1}" -eq 1 ]]; then

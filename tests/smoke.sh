@@ -49,6 +49,7 @@ run_case() {
   grep -q '^# Informe de instalación Debian Scripts$' "$report_file"
   grep -Eq '^\| Seguridad +\| Hardening reforzado +\| Simulado +\|$' "$report_file"
   grep -Eq '^\| Seguridad +\| OpenSSH servidor +\| Simulado +\|$' "$report_file"
+  grep -Eq '^\| Seguridad +\| Claves SSH autorizadas +\| Simulado +\|$' "$report_file"
   grep -Eq '^\| Personalización +\| Configuración Bash +\| Simulado +\|$' "$report_file"
   grep -Eq '^\| Personalización +\| Zsh y modificación de terminal +\| Simulado +\|$' \
     "$report_file"
@@ -446,5 +447,46 @@ if grep -Rqs '10\.10\.30\.10' \
   echo "ERROR: se detectó la IP privada Wazuh en contenido publicable" >&2
   exit 1
 fi
+
+# Gap 1: DRY-RUN con SSH_PUBKEY menciona authorized_keys
+ssh_pubkey_output="$(mktemp)"
+SSH_PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKeySmoke test@example.com" \
+  ENABLE_SSH=1 ENABLE_FIREWALL=0 ENABLE_AUTO_UPDATES=0 \
+  DRY_RUN=1 TARGET_USER=operador NO_COLOR=1 \
+  bash "$ROOT_DIR/scripts/security/baseline.sh" >"$ssh_pubkey_output" 2>&1
+grep -q 'authorized_keys' "$ssh_pubkey_output"
+rm -f "$ssh_pubkey_output"
+
+# Gap 1: DRY-RUN sin SSH_PUBKEY también menciona authorized_keys
+ssh_nokey_output="$(mktemp)"
+ENABLE_SSH=1 ENABLE_FIREWALL=0 ENABLE_AUTO_UPDATES=0 \
+  DRY_RUN=1 TARGET_USER=operador NO_COLOR=1 \
+  bash "$ROOT_DIR/scripts/security/baseline.sh" >"$ssh_nokey_output" 2>&1
+grep -q 'authorized_keys' "$ssh_nokey_output"
+rm -f "$ssh_nokey_output"
+
+# Gap 2: Idempotencia del awk-guard de personalizacion_bash.sh
+idem_start='# >>> DEBIAN BASH CUSTOM >>>'
+idem_end='# <<< DEBIAN BASH CUSTOM <<<'
+idem_bashrc="$(mktemp)"
+# Simular que el bloque ya existe en .bashrc (primera ejecución hipotética)
+printf '# contenido previo\n%s\nalias test=true\n%s\n' "$idem_start" "$idem_end" >"$idem_bashrc"
+# Aplicar el filtro awk exactamente como lo hace personalizacion_bash.sh
+idem_tmp="$(mktemp)"
+awk -v start="$idem_start" -v end="$idem_end" '
+  $0 == start {skip=1; next}
+  $0 == end   {skip=0; next}
+  !skip       {print}
+' "$idem_bashrc" >"$idem_tmp"
+# Agregar el bloque de nuevo (simular segunda escritura)
+printf '%s\nalias test=true\n%s\n' "$idem_start" "$idem_end" >>"$idem_tmp"
+# Contenido anterior debe estar preservado y el bloque aparecer exactamente una vez
+grep -q '# contenido previo' "$idem_tmp"
+idem_count="$(grep -c "$idem_start" "$idem_tmp")"
+[[ "$idem_count" -eq 1 ]] || {
+  printf 'ERROR: awk-guard falló — bloque duplicado (%s veces)\n' "$idem_count" >&2
+  rm -f "$idem_bashrc" "$idem_tmp"; exit 1
+}
+rm -f "$idem_bashrc" "$idem_tmp"
 
 echo "Smoke tests: OK"
