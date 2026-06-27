@@ -11,7 +11,7 @@ limitado puede conservar todos los controles de seguridad.
 | `tools` | Herramientas generales de administración | Sí |
 | `cli-tools` | `vim-tiny` y `tmux` | Sí en modo CLI |
 | `desktop` | Instalación o ampliación de XFCE/LXQt | Sí en modo GUI |
-| `optimization` | Ajustes y paquetes asociados al perfil | Sí |
+| `optimization` | Ajustes del perfil y tuning conservador de VM si aplica | Sí |
 | `firewall` | UFW con entrada denegada por defecto | Sí |
 | `auto-updates` | Actualizaciones automáticas de seguridad | Sí |
 | `hardening` | AppArmor, sysctl conservador y protección SSH | Sí |

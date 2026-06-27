@@ -64,6 +64,25 @@ wizard_preset() {
   [[ "$option" == "1" ]] && printf 'general' || printf 'gui-low-resource'
 }
 
+wizard_virtualization() {
+  local detected="${1:-baremetal}" option
+  local default="n"
+
+  [[ "$detected" != "baremetal" ]] && default="s"
+  if ! confirm "¿Este Debian corre dentro de una VM? (detección: $detected)" "$default"; then
+    printf 'baremetal'
+    return
+  fi
+
+  if [[ "$detected" == "vmware" ]]; then
+    printf 'vmware'
+    return
+  fi
+
+  option="$(choose "Tipo de virtualización" "VMware" "Otra VM")"
+  [[ "$option" == "1" ]] && printf 'vmware' || printf 'virtual'
+}
+
 wizard_mode() {
   local option
   option="$(choose "Tipo de sistema objetivo" "CLI (servidor/terminal)" "GUI (escritorio)")"
@@ -71,9 +90,17 @@ wizard_mode() {
 }
 
 wizard_desktop() {
-  local option
-  option="$(choose "Escritorio de referencia" "XFCE (equilibrado)" "LXQt (liviano/monotarea/RDP)")"
-  [[ "$option" == "1" ]] && printf 'xfce' || printf 'lxqt'
+  local recommended="${1:-xfce}" option
+  info "Escritorio recomendado por RAM: $recommended" >&2
+  option="$(choose "Escritorio de referencia" \
+    "Usar recomendado ($recommended)" \
+    "XFCE (equilibrado)" \
+    "LXQt (liviano/monotarea/RDP)")"
+  case "$option" in
+    1) printf '%s' "$recommended" ;;
+    2) printf 'xfce' ;;
+    3) printf 'lxqt' ;;
+  esac
 }
 
 wizard_profile() {
@@ -205,6 +232,7 @@ show_plan() {
     printf '  Adicionales:   ninguno\n'
   fi
   printf '  Preset:        %s\n' "$PRESET"
+  printf '  Entorno:       %s\n' "$([[ "${IS_VM:-0}" -eq 1 ]] && echo "VM ($VIRTUALIZATION_TYPE)" || echo "bare metal")"
   printf '  Instalación:   %s\n' "$INSTALL_MODE"
   printf '  Escritorio:    %s\n' "$DESKTOP"
   printf '  Perfil:        %s\n' "$PROFILE"

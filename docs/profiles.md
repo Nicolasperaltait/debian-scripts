@@ -12,8 +12,10 @@ usuario seleccionó.
 | Alta | 16-31 GB y al menos 6 hilos | Si se elige optimización: utilidades adicionales |
 | Ultra | 32 GB o más y al menos 8 hilos | Si se elige optimización: utilidades completas y preload |
 
-Para equipos de recursos bajos, monotarea o usados principalmente como cliente
-RDP, se recomienda LXQt.
+Para modo GUI, el instalador recomienda escritorio según RAM cuando el usuario
+no indicó uno explícitamente: menos de 4 GB usa LXQt; 4 GB o más usa XFCE. Para
+equipos de recursos bajos, monotarea o usados principalmente como cliente RDP,
+se recomienda LXQt.
 
 La detección toma como límite el componente más débil. No se aplican
 parámetros de kernel experimentales.
@@ -27,3 +29,12 @@ en Debian 12 y Debian 13.
 
 No toca automáticamente NetworkManager, `systemd-resolved`, impresión,
 Bluetooth, Avahi, SSH, xrdp, suspensión ni hibernación.
+
+## VM y VMware
+
+El wizard pregunta si Debian corre dentro de una VM y la CLI acepta
+`--virtualization auto|baremetal|vm|vmware`. Si se selecciona `optimization` en
+una VM, aplica ajustes conservadores: `vm.swappiness=10`, TRIM periódico y,
+para VMware, Open VM Tools. En VMware deshabilita la sincronización horaria de
+VMware para dejar la hora bajo control de NTP/systemd y, si el escritorio es
+XFCE, deja el compositor desactivado para mejorar fluidez.

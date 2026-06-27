@@ -79,12 +79,25 @@ if DEBIAN_SCRIPTS_TEST=1 NO_COLOR=1 bash "$ROOT_DIR/main.sh" \
   exit 1
 fi
 
-if DEBIAN_SCRIPTS_TEST=1 NO_COLOR=1 bash "$ROOT_DIR/main.sh" \
-  --dry-run --user operador --mode gui --profile baja --yes \
-  >/dev/null 2>&1; then
-  echo "ERROR: --yes aceptó GUI sin escritorio" >&2
-  exit 1
-fi
+auto_lxqt_output="$(mktemp)"
+DEBIAN_SCRIPTS_TEST=1 TEST_DEBIAN_VERSION=13 TEST_RAM_MB=3072 \
+  TEST_CPU_THREADS=2 NO_COLOR=1 \
+  bash "$ROOT_DIR/main.sh" --dry-run --user operador \
+  --mode gui --profile baja --components desktop --skip-upgrade --yes \
+  >"$auto_lxqt_output" 2>&1
+grep -q 'Escritorio:    lxqt' "$auto_lxqt_output"
+grep -q 'lxqt-core' "$auto_lxqt_output"
+rm -f "$auto_lxqt_output"
+
+auto_xfce_output="$(mktemp)"
+DEBIAN_SCRIPTS_TEST=1 TEST_DEBIAN_VERSION=13 TEST_RAM_MB=4096 \
+  TEST_CPU_THREADS=4 NO_COLOR=1 \
+  bash "$ROOT_DIR/main.sh" --dry-run --user operador \
+  --mode gui --profile media --components desktop --skip-upgrade --yes \
+  >"$auto_xfce_output" 2>&1
+grep -q 'Escritorio:    xfce' "$auto_xfce_output"
+grep -q 'xfce4-goodies' "$auto_xfce_output"
+rm -f "$auto_xfce_output"
 
 multi_user_output="$(mktemp)"
 DEBIAN_SCRIPTS_TEST=1 \
@@ -390,6 +403,21 @@ grep -q 'zram-generator.conf' "$c200_recommended_output"
 grep -q 'gammastep-toggle-90' "$c200_recommended_output"
 grep -q 'Auditoría final del sistema' "$c200_recommended_output"
 rm -f "$c200_recommended_output"
+
+vmware_output="$(mktemp)"
+DEBIAN_SCRIPTS_TEST=1 TEST_DEBIAN_VERSION=13 TEST_RAM_MB=8192 \
+  TEST_CPU_THREADS=4 TEST_IS_VM=1 TEST_VIRTUALIZATION_TYPE=vmware NO_COLOR=1 \
+  bash "$ROOT_DIR/main.sh" --dry-run --user operador \
+  --mode gui --desktop xfce --profile media \
+  --components optimization --skip-upgrade --yes \
+  >"$vmware_output" 2>&1
+grep -q 'Entorno:       VM (vmware)' "$vmware_output"
+grep -q 'open-vm-tools-desktop' "$vmware_output"
+grep -q 'vmware-toolbox-cmd timesync disable' "$vmware_output"
+grep -q 'systemctl enable --now fstrim.timer' "$vmware_output"
+grep -q '80-debian-scripts-vm.conf' "$vmware_output"
+grep -q 'debian-scripts-xfce-vm-tuning.desktop' "$vmware_output"
+rm -f "$vmware_output"
 
 for active_file in \
   scripts/maintenance/fix_time_rtc.sh \

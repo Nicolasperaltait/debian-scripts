@@ -291,6 +291,7 @@ write_install_report() {
     printf -- '- **Usuario objetivo:** `%s`\n' "$TARGET_USER"
     printf -- '- **Ejecución:** %s\n' "$execution"
     printf -- '- **Preset:** `%s`\n' "${PRESET:-general}"
+    printf -- '- **Entorno:** `%s`\n' "$([[ "${IS_VM:-0}" -eq 1 ]] && printf 'VM (%s)' "${VIRTUALIZATION_TYPE:-virtual}" || printf 'bare metal')"
     printf -- '- **Modo:** %s\n' "$mode_detail"
     printf -- '- **Perfil:** `%s`\n' "$PROFILE"
     printf -- '- **Reinicio:** %s\n\n' "$reboot_status"

@@ -6,6 +6,71 @@ ARCH=""
 RAM_MB=0
 CPU_THREADS=0
 DISK_FREE_GB=0
+IS_VM=0
+VIRTUALIZATION_TYPE="baremetal"
+
+set_virtualization_type() {
+  local value="${1:-auto}"
+
+  case "$value" in
+    auto) return 0 ;;
+    baremetal)
+      IS_VM=0
+      VIRTUALIZATION_TYPE="baremetal"
+      ;;
+    vm|virtual)
+      IS_VM=1
+      VIRTUALIZATION_TYPE="virtual"
+      ;;
+    vmware)
+      IS_VM=1
+      VIRTUALIZATION_TYPE="vmware"
+      ;;
+    *)
+      fail "Virtualización inválida: $value"
+      ;;
+  esac
+}
+
+detect_virtualization() {
+  local detected product sys_vendor
+
+  if [[ "${DEBIAN_SCRIPTS_TEST:-0}" == "1" ]]; then
+    if [[ "${TEST_IS_VM:-0}" == "1" ]]; then
+      IS_VM=1
+      VIRTUALIZATION_TYPE="${TEST_VIRTUALIZATION_TYPE:-virtual}"
+    else
+      IS_VM=0
+      VIRTUALIZATION_TYPE="baremetal"
+    fi
+    return
+  fi
+
+  if command -v systemd-detect-virt >/dev/null 2>&1 &&
+    systemd-detect-virt --vm --quiet; then
+    detected="$(systemd-detect-virt --vm 2>/dev/null || true)"
+    IS_VM=1
+    VIRTUALIZATION_TYPE="${detected:-virtual}"
+    return
+  fi
+
+  product="$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)"
+  sys_vendor="$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || true)"
+  case "${product} ${sys_vendor}" in
+    *VMware*|*VMWARE*)
+      IS_VM=1
+      VIRTUALIZATION_TYPE="vmware"
+      ;;
+    *VirtualBox*|*KVM*|*QEMU*|*Hyper-V*)
+      IS_VM=1
+      VIRTUALIZATION_TYPE="virtual"
+      ;;
+    *)
+      IS_VM=0
+      VIRTUALIZATION_TYPE="baremetal"
+      ;;
+  esac
+}
 
 detect_system() {
   if [[ "${DEBIAN_SCRIPTS_TEST:-0}" == "1" ]]; then
@@ -15,6 +80,7 @@ detect_system() {
     RAM_MB="${TEST_RAM_MB:-8192}"
     CPU_THREADS="${TEST_CPU_THREADS:-4}"
     DISK_FREE_GB="${TEST_DISK_FREE_GB:-40}"
+    detect_virtualization
     return
   fi
 
@@ -29,6 +95,7 @@ detect_system() {
   RAM_MB="$(awk '/MemTotal/ {printf "%d", $2/1024}' /proc/meminfo)"
   CPU_THREADS="$(getconf _NPROCESSORS_ONLN)"
   DISK_FREE_GB="$(df -Pk / | awk 'NR==2 {printf "%d", $4/1024/1024}')"
+  detect_virtualization
 }
 
 check_platform() {
@@ -74,6 +141,14 @@ recommend_profile() {
   fi
 }
 
+recommend_desktop() {
+  if ((RAM_MB < 4096)); then
+    printf 'lxqt'
+  else
+    printf 'xfce'
+  fi
+}
+
 show_system_summary() {
   section "Sistema detectado"
   printf '  Debian:    %s (%s)\n' "$DEBIAN_VERSION" "$DEBIAN_CODENAME"
@@ -81,4 +156,5 @@ show_system_summary() {
   printf '  RAM:       %s MB\n' "$RAM_MB"
   printf '  CPU:       %s hilos\n' "$CPU_THREADS"
   printf '  Disco:     %s GB libres\n' "$DISK_FREE_GB"
+  printf '  Entorno:   %s\n' "$([[ "$IS_VM" -eq 1 ]] && printf 'VM (%s)' "$VIRTUALIZATION_TYPE" || printf 'bare metal')"
 }

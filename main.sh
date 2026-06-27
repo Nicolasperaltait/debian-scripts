@@ -16,6 +16,7 @@ source "$ROOT_DIR/lib/wizard.sh"
 TARGET_USER=""
 ADDITIONAL_USERS=()
 PRESET=""
+VIRTUALIZATION_SELECTION="auto"
 INSTALL_MODE=""
 DESKTOP=""
 PROFILE=""
@@ -51,6 +52,8 @@ Opciones:
                          Se puede repetir.
   --preset general|gui-low-resource
                          bajos recursos recomienda GUI + LXQt + perfil baja
+  --virtualization auto|baremetal|vm|vmware
+                         Entorno destino; auto detecta y el wizard confirma
   --mode cli|gui         Tipo de instalación
   --desktop xfce|lxqt    Escritorio para modo GUI
   --profile baja|media|alta|ultra
@@ -80,6 +83,7 @@ parse_args() {
       --user) TARGET_USER="${2:-}"; shift 2 ;;
       --add-user) ADDITIONAL_USERS+=("${2:-}"); shift 2 ;;
       --preset) PRESET="${2:-}"; shift 2 ;;
+      --virtualization) VIRTUALIZATION_SELECTION="${2:-}"; shift 2 ;;
       --mode) INSTALL_MODE="${2:-}"; shift 2 ;;
       --desktop) DESKTOP="${2:-}"; shift 2 ;;
       --profile) PROFILE="${2:-}"; shift 2 ;;
@@ -198,6 +202,8 @@ validate_selection() {
   validate_username "$TARGET_USER" || fail "Usuario inválido: $TARGET_USER"
   [[ "$PRESET" =~ ^(general|gui-low-resource)$ ]] ||
     fail "Preset inválido: $PRESET"
+  [[ "$VIRTUALIZATION_SELECTION" =~ ^(auto|baremetal|vm|virtual|vmware)$ ]] ||
+    fail "Virtualización inválida: $VIRTUALIZATION_SELECTION"
   [[ "$INSTALL_MODE" =~ ^(cli|gui)$ ]] || fail "Modo inválido: $INSTALL_MODE"
   [[ "$PROFILE" =~ ^(baja|media|alta|ultra)$ ]] || fail "Perfil inválido: $PROFILE"
 
@@ -244,7 +250,8 @@ run_module() {
     INSTALL_BASE_TOOLS="$INSTALL_BASE_TOOLS" INSTALL_CLI_TOOLS="$INSTALL_CLI_TOOLS" \
     ENABLE_FIREWALL="$ENABLE_FIREWALL" ENABLE_AUTO_UPDATES="$ENABLE_AUTO_UPDATES" \
     ENABLE_SSH="$ENABLE_SSH" SSH_PUBKEY="${SSH_PUBKEY:-}" \
-    ARCH="$ARCH" DEBIAN_VERSION="$DEBIAN_VERSION" \
+    ARCH="$ARCH" DEBIAN_VERSION="$DEBIAN_VERSION" RAM_MB="$RAM_MB" CPU_THREADS="$CPU_THREADS" \
+    IS_VM="$IS_VM" VIRTUALIZATION_TYPE="$VIRTUALIZATION_TYPE" \
     bash "$script" "$@"; then
     ok "$label"
   else
@@ -291,7 +298,7 @@ report_optional_modules() {
 }
 
 main() {
-  local recommended user_spec additional_user additional_role _ssh_home
+  local recommended recommended_desktop user_spec additional_user additional_role _ssh_home
 
   parse_args "$@"
   init_ui
@@ -306,6 +313,12 @@ main() {
   detect_system
   check_platform
   check_network
+
+  if [[ "$VIRTUALIZATION_SELECTION" != "auto" ]]; then
+    set_virtualization_type "$VIRTUALIZATION_SELECTION"
+  elif [[ "$ASSUME_YES" -eq 0 ]]; then
+    set_virtualization_type "$(wizard_virtualization "$VIRTUALIZATION_TYPE")"
+  fi
   show_system_summary
 
   if [[ -z "$TARGET_USER" ]]; then
@@ -336,16 +349,19 @@ main() {
   if [[ "$ASSUME_YES" -eq 1 ]]; then
     [[ -n "$TARGET_USER" && -n "$INSTALL_MODE" && -n "$PROFILE" ]] ||
       fail "--yes requiere --user, --mode y --profile."
-    if [[ "$INSTALL_MODE" == "gui" && -z "$DESKTOP" ]]; then
-      fail "--yes con modo GUI requiere --desktop."
-    fi
   fi
 
   if [[ -z "$INSTALL_MODE" ]]; then
     INSTALL_MODE="$(wizard_mode)"
   fi
+  recommended_desktop="$(recommend_desktop)"
   if [[ "$INSTALL_MODE" == "gui" && -z "$DESKTOP" ]]; then
-    DESKTOP="$(wizard_desktop)"
+    if [[ "$ASSUME_YES" -eq 1 ]]; then
+      DESKTOP="$recommended_desktop"
+      info "Escritorio seleccionado por recursos: $DESKTOP."
+    else
+      DESKTOP="$(wizard_desktop "$recommended_desktop")"
+    fi
   fi
 
   recommended="$(recommend_profile)"
@@ -354,8 +370,8 @@ main() {
     PROFILE="$(wizard_profile "$recommended")"
   fi
 
-  if [[ "$INSTALL_MODE" == "gui" && "$PROFILE" == "baja" && "$DESKTOP" == "xfce" ]]; then
-    warn "Para recursos bajos se recomienda LXQt."
+  if [[ "$INSTALL_MODE" == "gui" && "$RAM_MB" -lt 4096 && "$DESKTOP" == "xfce" ]]; then
+    warn "Con menos de 4 GB de RAM se recomienda LXQt."
     if confirm "¿Cambiar a LXQt?" "s"; then
       DESKTOP="lxqt"
     fi
@@ -463,6 +479,9 @@ main() {
   if [[ "$ENABLE_OPTIMIZATION" -eq 1 ]]; then
     run_module "Optimización perfil $PROFILE" "$ROOT_DIR/scripts/optimization/apply.sh"
     report_add "Optimización" "Ajustes del perfil $PROFILE"
+    if [[ "$IS_VM" -eq 1 ]]; then
+      report_add "Optimización" "Ajustes para VM ($VIRTUALIZATION_TYPE)"
+    fi
   else
     report_add "Optimización" "Ajustes del perfil $PROFILE" "Omitido"
   fi

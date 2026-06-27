@@ -22,6 +22,7 @@ el usuario decide por separado qué herramientas, controles y ajustes instalar.
 | Sistema | Debian 12/13, CLI o GUI, usuarios existentes o nuevos |
 | Escritorio | XFCE o LXQt |
 | Selección | Componentes principales y extras elegibles de forma independiente |
+| VM | Detección/confirmación de VM y ajustes específicos para VMware |
 | Optimización | Perfiles Baja, Media, Alta y Ultra; ZRAM solo si se selecciona |
 | Seguridad | UFW, actualizaciones automáticas, AppArmor, sysctl, SSH validado y Fail2ban |
 | Extras | SSH, Zsh, Flatpak, fuentes, RDP, ClamAV, RKHunter, Wazuh, OMV y más |
@@ -42,6 +43,7 @@ Revisá primero el plan sin modificar el sistema:
 ```bash
 sudo bash main.sh --dry-run \
   --user operador \
+  --virtualization auto \
   --preset gui-low-resource \
   --mode gui \
   --desktop lxqt \
@@ -77,6 +79,14 @@ sudo bash main.sh \
 
 También pregunta si debe actualizar todos los paquetes. En automatización puede
 elegirse explícitamente con `--upgrade-system` o `--skip-upgrade`.
+
+En modo GUI, si no se indica `--desktop`, el instalador evalúa RAM: menos de
+4 GB recomienda LXQt; 4 GB o más recomienda XFCE. En modo interactivo pregunta
+si Debian corre dentro de una VM; en automatización usa detección automática o
+`--virtualization vmware|vm|baremetal`. Cuando detecta VMware y se selecciona
+`optimization`, instala Open VM Tools, deshabilita la sincronización horaria de
+VMware para evitar conflictos con NTP, activa TRIM periódico y reduce efectos
+gráficos de XFCE para mejorar fluidez.
 
 ## Selección flexible
 
