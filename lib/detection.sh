@@ -158,23 +158,75 @@ require_root_or_reexec() {
 }
 
 recommend_profile() {
-  if ((RAM_MB < 8192 || CPU_THREADS <= 2)); then
+  local ram_profile cpu_profile
+
+  ram_profile="$(resource_profile_from_ram)"
+  cpu_profile="$(resource_profile_from_cpu)"
+  if (( $(profile_rank "$ram_profile") < $(profile_rank "$cpu_profile") )); then
+    printf '%s' "$ram_profile"
+  else
+    printf '%s' "$cpu_profile"
+  fi
+}
+
+recommend_desktop() {
+  if [[ "${PROFILE:-}" == "baja" ]]; then
+    printf 'lxqt'
+  else
+    printf 'xfce'
+  fi
+}
+
+profile_rank() {
+  case "$1" in
+    baja) printf '1' ;;
+    media) printf '2' ;;
+    alta) printf '3' ;;
+    ultra) printf '4' ;;
+    *) printf '0' ;;
+  esac
+}
+
+resource_profile_from_ram() {
+  if ((RAM_MB < 4096)); then
     printf 'baja'
-  elif ((RAM_MB < 16384 || CPU_THREADS < 6)); then
+  elif ((RAM_MB < 8192)); then
     printf 'media'
-  elif ((RAM_MB < 32768 || CPU_THREADS < 8)); then
+  elif ((RAM_MB < 16384)); then
     printf 'alta'
   else
     printf 'ultra'
   fi
 }
 
-recommend_desktop() {
-  if ((RAM_MB < 4096)); then
-    printf 'lxqt'
+resource_profile_from_cpu() {
+  if ((CPU_THREADS <= 2)); then
+    printf 'baja'
+  elif ((CPU_THREADS <= 4)); then
+    printf 'media'
+  elif ((CPU_THREADS <= 8)); then
+    printf 'alta'
   else
-    printf 'xfce'
+    printf 'ultra'
   fi
+}
+
+show_profile_recommendation() {
+  local ram_profile cpu_profile recommended limiter
+
+  ram_profile="$(resource_profile_from_ram)"
+  cpu_profile="$(resource_profile_from_cpu)"
+  recommended="$(recommend_profile)"
+  if (( $(profile_rank "$ram_profile") < $(profile_rank "$cpu_profile") )); then
+    limiter="RAM"
+  elif (( $(profile_rank "$cpu_profile") < $(profile_rank "$ram_profile") )); then
+    limiter="CPU"
+  else
+    limiter="RAM/CPU"
+  fi
+
+  info "Recursos detectados: ${RAM_MB} MB RAM (${ram_profile}), ${CPU_THREADS} hilos CPU (${cpu_profile})." >&2
+  info "Perfil recomendado: ${recommended} por cuello de botella: ${limiter}." >&2
 }
 
 show_system_summary() {

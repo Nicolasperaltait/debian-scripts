@@ -5,17 +5,16 @@ usuario siempre puede cambiar la recomendación. El perfil no decide qué
 componentes se instalan: solo modifica el comportamiento de aquellos que el
 usuario seleccionó.
 
-| Perfil | Criterio orientativo | Comportamiento |
-|---|---|---|
-| Baja | Menos de 8 GB o hasta 2 hilos | Si se elige optimización: ZRAM y logs limitados; ClamAV sin daemon |
-| Media | 8-15 GB y al menos 4 hilos | Si se elige optimización: utilidades equilibradas |
-| Alta | 16-31 GB y al menos 6 hilos | Si se elige optimización: utilidades adicionales |
-| Ultra | 32 GB o más y al menos 8 hilos | Si se elige optimización: utilidades completas y preload |
+| Perfil | RAM | CPU | Comportamiento |
+|---|---|---|---|
+| Baja | Menos de 4 GB | Hasta 2 hilos | Si se elige optimización: ZRAM y logs limitados; ClamAV sin daemon |
+| Media | 4 GB a menos de 8 GB | 3 a 4 hilos | Si se elige optimización: utilidades equilibradas |
+| Alta | 8 GB a menos de 16 GB | 5 a 8 hilos | Si se elige optimización: utilidades adicionales |
+| Ultra | 16 GB o más | Más de 8 hilos | Si se elige optimización: utilidades completas y preload |
 
-Para modo GUI, el instalador recomienda escritorio según RAM cuando el usuario
-no indicó uno explícitamente: menos de 4 GB usa LXQt; 4 GB o más usa XFCE. Para
-equipos de recursos bajos, monotarea o usados principalmente como cliente RDP,
-se recomienda LXQt.
+Para modo GUI, el instalador recomienda escritorio según perfil cuando el usuario
+no indicó uno explícitamente: `baja` usa LXQt; `media`, `alta` y `ultra` usan
+XFCE.
 
 La detección toma como límite el componente más débil. No se aplican
 parámetros de kernel experimentales.

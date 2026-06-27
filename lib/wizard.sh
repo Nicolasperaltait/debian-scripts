@@ -37,7 +37,7 @@ wizard_user() {
   invoking_user="${SUDO_USER:-}"
 
   if validate_username "$invoking_user" && [[ "$invoking_user" != "root" ]]; then
-    option="$(choose "Paso 1/6 - Usuario administrativo" \
+    option="$(choose "Usuario administrativo" \
       "Usar usuario actual ($invoking_user)" \
       "Indicar otro usuario")"
     [[ "$option" == "1" ]] && { printf '%s' "$invoking_user"; return; }
@@ -88,14 +88,6 @@ wizard_system_upgrade() {
   fi
 }
 
-wizard_preset() {
-  local option
-  option="$(choose "Escenario del equipo (solo recomendaciones)" \
-    "General" \
-    "GUI liviana (recomienda LXQt, perfil baja y auditoría)")"
-  [[ "$option" == "1" ]] && printf 'general' || printf 'gui-low-resource'
-}
-
 wizard_virtualization() {
   local detected="${1:-baremetal}" option
   local default="n"
@@ -117,13 +109,13 @@ wizard_virtualization() {
 
 wizard_mode() {
   local option
-  option="$(choose "Tipo de sistema objetivo" "CLI (servidor/terminal)" "GUI (escritorio)")"
+  option="$(choose "Paso 1 - Tipo de sistema objetivo" "CLI (servidor/terminal)" "GUI (escritorio)")"
   [[ "$option" == "1" ]] && printf 'cli' || printf 'gui'
 }
 
 wizard_desktop() {
   local recommended="${1:-xfce}" option
-  info "Escritorio recomendado por RAM: $recommended" >&2
+  info "Escritorio recomendado por perfil: $recommended" >&2
   option="$(choose "Escritorio de referencia" \
     "Usar recomendado ($recommended)" \
     "XFCE (equilibrado)" \
@@ -138,19 +130,19 @@ wizard_desktop() {
 wizard_profile() {
   local recommended="$1"
   local option
-  info "Perfil recomendado por hardware: $recommended" >&2
-  option="$(choose "Perfil de recursos (no determina qué componentes instalar)" \
+  show_profile_recommendation
+  option="$(choose "Paso 2 - Perfil de recursos" \
     "Usar recomendado ($recommended)" \
-    "Ultra" \
-    "Alta" \
-    "Media" \
-    "Baja")"
+    "Baja (<4 GB RAM o <=2 hilos CPU)" \
+    "Media (4-8 GB RAM o 3-4 hilos CPU)" \
+    "Alta (8-16 GB RAM o 5-8 hilos CPU)" \
+    "Ultra (>=16 GB RAM y >8 hilos CPU)")"
   case "$option" in
     1) printf '%s' "$recommended" ;;
-    2) printf 'ultra' ;;
-    3) printf 'alta' ;;
-    4) printf 'media' ;;
-    5) printf 'baja' ;;
+    2) printf 'baja' ;;
+    3) printf 'media' ;;
+    4) printf 'alta' ;;
+    5) printf 'ultra' ;;
   esac
 }
 
@@ -212,6 +204,7 @@ wizard_components() {
 wizard_apps() {
   local app_selection=""
 
+  section "Aplicaciones GUI" >&2
   app_selection="$(choose_checklist "Aplicaciones GUI" \
     "Marcá las aplicaciones de escritorio a instalar." \
     chrome "Google Chrome (APT oficial)" OFF \
@@ -269,13 +262,18 @@ wizard_debloat_packages() {
   local -a options=()
   local selection=""
 
+  section "Debloat seguro" >&2
   for package in $(debloat_candidates_for_desktop); do
     if dpkg-query -W -f='${Status}\n' "$package" 2>/dev/null | grep -q 'install ok installed'; then
       options+=("$package" "Candidata de debloat" OFF)
     fi
   done
 
-  ((${#options[@]})) || return 0
+  ((${#options[@]})) || {
+    info "No hay paquetes candidatos instalados para debloat." >&2
+    printf '__sin_candidatos__'
+    return 0
+  }
 
   selection="$(choose_checklist "Debloat seguro" \
     "Marcá paquetes para auditar con apt-get -s purge." "${options[@]}")" || true
@@ -301,6 +299,8 @@ wizard_extras() {
   while IFS='|' read -r item label; do
     # Skip ssh if it is already managed as a main component.
     [[ "$item" == "ssh" && "${ENABLE_SSH:-1}" -eq 1 ]] && continue
+    [[ "$item" == "apps" ]] && continue
+    [[ "$INSTALL_MODE" == "gui" && "$item" == "debloat" ]] && continue
     if confirm "¿Instalar $label ($item)?" "n"; then result+=("$item"); fi
   done <<'EOF'
 ssh|OpenSSH y regla de firewall
@@ -366,7 +366,11 @@ show_plan() {
   if [[ -n "${NVIDIA_USER_MODEL:-}" ]]; then
     printf '  Modelo NVIDIA: %s\n' "$NVIDIA_USER_MODEL"
   fi
-  printf '  Debloat:       %s\n' "${DEBLOAT_PACKAGES:-ninguno}"
+  if [[ -n "${DEBLOAT_PACKAGES:-}" ]]; then
+    printf '  Debloat:       %s (%s)\n' "$DEBLOAT_PACKAGES" "${DEBLOAT_STATUS:-pendiente de confirmación}"
+  else
+    printf '  Debloat:       %s\n' "${DEBLOAT_STATUS:-omitido}"
+  fi
   printf '  Upgrade APT:   %s\n' "$([[ "$UPGRADE_SYSTEM" -eq 1 ]] && echo sí || echo no)"
   printf '  Herramientas:  %s\n' "$([[ "$INSTALL_BASE_TOOLS" -eq 1 ]] && echo "$enabled_text" || echo "$disabled_text")"
   printf '  Herram. CLI:   %s\n' "$([[ "$INSTALL_CLI_TOOLS" -eq 1 ]] && echo "$enabled_text" || echo "$disabled_text")"

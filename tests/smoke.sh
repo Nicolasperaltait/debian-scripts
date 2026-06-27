@@ -256,6 +256,60 @@ printf 'n\nn\nn\nn\ns\n\nn\nn\n\n\n' |
 grep -q '^0:0:0:0:0:1:1:1:1$' "$wizard_components_output"
 rm -f "$wizard_components_output"
 
+profile_matrix_output="$(mktemp)"
+NO_COLOR=1 bash -c '
+  source "'"$ROOT_DIR"'/lib/common.sh"
+  source "'"$ROOT_DIR"'/lib/detection.sh"
+  init_ui
+  for spec in "2048:8:baja" "6144:4:media" "12288:8:alta" "20480:10:ultra"; do
+    IFS=: read -r RAM_MB CPU_THREADS expected <<<"$spec"
+    actual="$(recommend_profile)"
+    printf "%s:%s:%s\n" "$RAM_MB" "$CPU_THREADS" "$actual"
+    [[ "$actual" == "$expected" ]] || exit 1
+  done
+' >"$profile_matrix_output" 2>&1
+grep -q '^2048:8:baja$' "$profile_matrix_output"
+grep -q '^6144:4:media$' "$profile_matrix_output"
+grep -q '^12288:8:alta$' "$profile_matrix_output"
+grep -q '^20480:10:ultra$' "$profile_matrix_output"
+rm -f "$profile_matrix_output"
+
+if grep -RqsE 'wizard_preset|Escenario del equipo' "$ROOT_DIR/main.sh" "$ROOT_DIR/lib" "$ROOT_DIR/docs" "$ROOT_DIR/README.md"; then
+  echo "ERROR: el wizard conserva el paso Escenario" >&2
+  exit 1
+fi
+
+gui_wizard_output="$(mktemp)"
+gui_wizard_bin="$(mktemp -d)"
+cat >"$gui_wizard_bin/dpkg-query" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$gui_wizard_bin/dpkg-query"
+{
+  printf '\n'        # virtualización: baremetal por defecto
+  printf '2\n'      # modo GUI
+  printf '1\n'      # perfil recomendado
+  printf '1\n'      # escritorio recomendado
+  printf 'operador\n'
+  printf '\n\n'     # sin usuarios adicionales, upgrade default
+  for _ in 1 2 3 4 5 6 7 8; do printf '\n'; done
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do printf '\n'; done
+  for _ in 1 2 3 4 5 6 7; do printf '\n'; done
+  printf '\n'       # no aplicar plan
+} | PATH="$gui_wizard_bin:$PATH" DEBIAN_SCRIPTS_TEST=1 TEST_DEBIAN_VERSION=13 \
+  TEST_RAM_MB=6144 TEST_CPU_THREADS=4 NO_COLOR=1 \
+  bash "$ROOT_DIR/main.sh" --dry-run >"$gui_wizard_output" 2>&1
+grep -q 'Paso 1 - Tipo de sistema objetivo' "$gui_wizard_output"
+grep -q 'Paso 2 - Perfil de recursos' "$gui_wizard_output"
+grep -q 'Recursos detectados: 6144 MB RAM (media), 4 hilos CPU (media).' "$gui_wizard_output"
+grep -q 'Aplicaciones GUI' "$gui_wizard_output"
+grep -q 'Debloat seguro' "$gui_wizard_output"
+grep -q 'Debloat:       sin candidatos' "$gui_wizard_output"
+! grep -q 'Escenario del equipo' "$gui_wizard_output"
+rm -f "$gui_wizard_output"
+rm -rf "$gui_wizard_bin"
+
 critical_output="$(mktemp)"
 critical_bin="$(mktemp -d)"
 trap 'rm -f "$critical_output"; rm -rf "$critical_bin"' EXIT

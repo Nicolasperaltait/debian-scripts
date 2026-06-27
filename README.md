@@ -82,8 +82,8 @@ sudo bash main.sh \
 También pregunta si debe actualizar todos los paquetes. En automatización puede
 elegirse explícitamente con `--upgrade-system` o `--skip-upgrade`.
 
-En modo GUI, si no se indica `--desktop`, el instalador evalúa RAM: menos de
-4 GB recomienda LXQt; 4 GB o más recomienda XFCE. En modo interactivo pregunta
+En modo GUI, si no se indica `--desktop`, el instalador recomienda LXQt para
+perfil `baja` y XFCE para perfiles `media`, `alta` o `ultra`. En modo interactivo pregunta
 si Debian corre dentro de una VM; en automatización usa detección automática o
 `--virtualization vmware|vm|baremetal`. Cuando detecta VMware y se selecciona
 `optimization`, instala Open VM Tools, deshabilita la sincronización horaria de
@@ -94,9 +94,9 @@ gráficos de XFCE para mejorar fluidez.
 
 El instalador separa tres conceptos:
 
-1. **Escenario:** agrega recomendaciones, pero no fuerza opciones.
-2. **Perfil:** ajusta comportamiento según recursos.
-3. **Componentes y extras:** determina concretamente qué se instala.
+1. **Tipo de sistema:** CLI o GUI.
+2. **Perfil:** se recomienda por RAM y CPU, usando el recurso más limitado.
+3. **Componentes, extras, apps y debloat:** determinan concretamente qué se instala o audita.
 
 Componentes principales disponibles:
 
@@ -158,7 +158,7 @@ Recomendaciones de hardware
 Selección independiente y confirmación
         |
         v
-APT -> componentes elegidos -> extras -> auditoría opcional
+APT -> componentes elegidos -> apps/debloat GUI -> extras -> auditoría opcional
         |
         v
 Log completo e informe Markdown
@@ -217,11 +217,11 @@ SSH ni XRDP.
 
 ## Apps, NVIDIA y debloat
 
-- En `gui`, el extra `apps` permite seleccionar aplicaciones de escritorio con prioridad APT.
+- En `gui`, el wizard muestra siempre la selección de aplicaciones de escritorio con prioridad APT.
 - Chrome, VS Code y LibreWolf usan repositorios oficiales APT del proveedor.
 - Obsidian, VLC, Bitwarden y Remmina usan Flatpak solo cuando se seleccionan.
 - Si se detecta NVIDIA, el wizard exige una decisión explícita antes de instalar drivers.
-- El extra `debloat` simula `apt-get -s purge` antes de permitir cualquier eliminación.
+- En `gui`, el wizard muestra siempre debloat seguro; primero inventario y simulación `apt-get -s purge`.
 
 ## Pruebas
 

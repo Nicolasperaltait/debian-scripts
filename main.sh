@@ -29,6 +29,7 @@ FLATPAK_APP_SELECTIONS=""
 NVIDIA_POLICY=""
 NVIDIA_USER_MODEL=""
 DEBLOAT_PACKAGES=""
+DEBLOAT_STATUS="omitido"
 UPGRADE_SYSTEM=1
 COMPONENTS_ONLY=""
 COMPONENTS_SKIP=""
@@ -283,13 +284,14 @@ classify_app_selections() {
   local item
   local -a apt_apps=()
   local -a flatpak_apps=()
+  local -a gui_apps=()
 
   APT_APP_SELECTIONS=""
   FLATPAK_APP_SELECTIONS=""
   [[ -n "$GUI_APP_SELECTIONS" ]] || return 0
 
-  IFS=',' read -r -a _gui_apps <<<"$GUI_APP_SELECTIONS"
-  for item in "${_gui_apps[@]}"; do
+  IFS=',' read -r -a gui_apps <<<"$GUI_APP_SELECTIONS"
+  for item in "${gui_apps[@]}"; do
     case "$item" in
       chrome|code|librewolf) apt_apps+=("$item") ;;
       obsidian|vlc|bitwarden|remmina) flatpak_apps+=("$item") ;;
@@ -298,6 +300,31 @@ classify_app_selections() {
 
   APT_APP_SELECTIONS="$(IFS=,; printf '%s' "${apt_apps[*]}")"
   FLATPAK_APP_SELECTIONS="$(IFS=,; printf '%s' "${flatpak_apps[*]}")"
+}
+
+csv_add_unique() {
+  local current="${1:-}" item="$2"
+
+  [[ ",$current," == *,"$item",* ]] && { printf '%s' "$current"; return; }
+  if [[ -n "$current" ]]; then
+    printf '%s,%s' "$current" "$item"
+  else
+    printf '%s' "$item"
+  fi
+}
+
+csv_remove_item() {
+  local current="${1:-}" item="$2" value
+  local -a values=()
+  local -a kept=()
+
+  [[ -n "$current" ]] || return 0
+  IFS=',' read -r -a values <<<"$current"
+  for value in "${values[@]}"; do
+    [[ "$value" == "$item" || -z "$value" ]] && continue
+    kept+=("$value")
+  done
+  printf '%s' "$(IFS=,; printf '%s' "${kept[*]}")"
 }
 
 run_module() {
@@ -316,7 +343,7 @@ run_module() {
     FLATPAK_APP_SELECTIONS="$FLATPAK_APP_SELECTIONS" \
     NVIDIA_PRESENT="$NVIDIA_PRESENT" NVIDIA_MODEL="$NVIDIA_MODEL" \
     NVIDIA_POLICY="$NVIDIA_POLICY" NVIDIA_USER_MODEL="$NVIDIA_USER_MODEL" \
-    DEBLOAT_PACKAGES="$DEBLOAT_PACKAGES" \
+    DEBLOAT_PACKAGES="$DEBLOAT_PACKAGES" DEBLOAT_STATUS="$DEBLOAT_STATUS" \
     INSTALL_BASE_TOOLS="$INSTALL_BASE_TOOLS" INSTALL_CLI_TOOLS="$INSTALL_CLI_TOOLS" \
     ENABLE_FIREWALL="$ENABLE_FIREWALL" ENABLE_AUTO_UPDATES="$ENABLE_AUTO_UPDATES" \
     ENABLE_SSH="$ENABLE_SSH" SSH_PUBKEY="${SSH_PUBKEY:-}" \
@@ -400,6 +427,40 @@ main() {
   fi
   show_system_summary
 
+  if [[ -z "$PRESET" ]]; then
+    PRESET="general"
+  fi
+
+  if [[ "$PRESET" == "gui-low-resource" ]]; then
+    info "Preset GUI liviana: se recomienda LXQt, perfil baja y auditoría final."
+    info "Las recomendaciones no reemplazan tus selecciones."
+  fi
+
+  if [[ -z "$INSTALL_MODE" ]]; then
+    if [[ "$ASSUME_YES" -eq 1 ]]; then
+      fail "--yes requiere --mode."
+    fi
+    INSTALL_MODE="$(wizard_mode)"
+  fi
+
+  recommended="$(recommend_profile)"
+  if [[ -z "$PROFILE" ]]; then
+    if [[ "$ASSUME_YES" -eq 1 ]]; then
+      fail "--yes requiere --profile."
+    fi
+    PROFILE="$(wizard_profile "$recommended")"
+  fi
+
+  recommended_desktop="$(recommend_desktop)"
+  if [[ "$INSTALL_MODE" == "gui" && -z "$DESKTOP" ]]; then
+    if [[ "$ASSUME_YES" -eq 1 ]]; then
+      DESKTOP="$recommended_desktop"
+      info "Escritorio seleccionado por perfil: $DESKTOP."
+    else
+      DESKTOP="$(wizard_desktop "$recommended_desktop")"
+    fi
+  fi
+
   if [[ -z "$TARGET_USER" ]]; then
     if [[ "$ASSUME_YES" -eq 1 ]]; then
       fail "--yes requiere --user."
@@ -410,43 +471,6 @@ main() {
   if [[ "$ASSUME_YES" -eq 0 ]]; then
     wizard_additional_users
     wizard_system_upgrade
-  fi
-
-  if [[ -z "$PRESET" ]]; then
-    if [[ "$ASSUME_YES" -eq 1 ]]; then
-      PRESET="general"
-    else
-      PRESET="$(wizard_preset)"
-    fi
-  fi
-
-  if [[ "$PRESET" == "gui-low-resource" ]]; then
-    info "Preset GUI liviana: se recomienda LXQt, perfil baja y auditoría final."
-    info "Las recomendaciones no reemplazan tus selecciones."
-  fi
-
-  if [[ "$ASSUME_YES" -eq 1 ]]; then
-    [[ -n "$TARGET_USER" && -n "$INSTALL_MODE" && -n "$PROFILE" ]] ||
-      fail "--yes requiere --user, --mode y --profile."
-  fi
-
-  if [[ -z "$INSTALL_MODE" ]]; then
-    INSTALL_MODE="$(wizard_mode)"
-  fi
-  recommended_desktop="$(recommend_desktop)"
-  if [[ "$INSTALL_MODE" == "gui" && -z "$DESKTOP" ]]; then
-    if [[ "$ASSUME_YES" -eq 1 ]]; then
-      DESKTOP="$recommended_desktop"
-      info "Escritorio seleccionado por recursos: $DESKTOP."
-    else
-      DESKTOP="$(wizard_desktop "$recommended_desktop")"
-    fi
-  fi
-
-  recommended="$(recommend_profile)"
-  [[ "$PRESET" == "gui-low-resource" ]] && recommended="baja"
-  if [[ -z "$PROFILE" ]]; then
-    PROFILE="$(wizard_profile "$recommended")"
   fi
 
   if [[ "$NVIDIA_PRESENT" -eq 1 && -z "$NVIDIA_POLICY" ]]; then
@@ -477,12 +501,33 @@ main() {
     EXTRAS="$(wizard_extras)"
   fi
 
-  if [[ "$INSTALL_MODE" == "gui" && ",$EXTRAS," == *,apps,* && -z "$GUI_APP_SELECTIONS" && "$ASSUME_YES" -eq 0 ]]; then
+  if [[ "$INSTALL_MODE" == "gui" && -z "$GUI_APP_SELECTIONS" && "$ASSUME_YES" -eq 0 ]]; then
     GUI_APP_SELECTIONS="$(wizard_apps)"
   fi
   classify_app_selections
-  if [[ ",$EXTRAS," == *,debloat,* && -z "$DEBLOAT_PACKAGES" && "$ASSUME_YES" -eq 0 ]]; then
+  if [[ ( -z "$DEBLOAT_PACKAGES" && "$ASSUME_YES" -eq 0 ) &&
+    ( "$INSTALL_MODE" == "gui" || ",$EXTRAS," == *,debloat,* ) ]]; then
     DEBLOAT_PACKAGES="$(wizard_debloat_packages)"
+    case "$DEBLOAT_PACKAGES" in
+      __sin_candidatos__)
+        DEBLOAT_PACKAGES=""
+        DEBLOAT_STATUS="sin candidatos"
+        EXTRAS="$(csv_remove_item "$EXTRAS" "debloat")"
+        ;;
+      "")
+        DEBLOAT_STATUS="omitido"
+        ;;
+      *)
+        DEBLOAT_STATUS="pendiente de simulación"
+        ;;
+    esac
+  fi
+  if [[ -n "$GUI_APP_SELECTIONS" ]]; then
+    EXTRAS="$(csv_add_unique "$EXTRAS" "apps")"
+  fi
+  if [[ -n "$DEBLOAT_PACKAGES" ]]; then
+    [[ "$DEBLOAT_STATUS" == "omitido" ]] && DEBLOAT_STATUS="pendiente de simulación"
+    EXTRAS="$(csv_add_unique "$EXTRAS" "debloat")"
   fi
 
   validate_selection

@@ -41,7 +41,7 @@ if ! git check-ignore -q legacy-source/archivo-local; then
   fail "legacy-source debe permanecer excluido por .gitignore"
 fi
 
-sanitized_matches="$(git grep -I -n -i -E -e 'c200|c240|lenovo c200' -- . || true)"
+sanitized_matches="$(git grep -I -n -i -E -e 'c200|c240|lenovo' -- . || true)"
 sanitized_matches="$(printf '%s\n' "$sanitized_matches" | grep -v '^tests/public-safety.sh:' || true)"
 if [[ -n "$sanitized_matches" ]]; then
   printf '%s\n' "$sanitized_matches"
