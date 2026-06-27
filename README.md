@@ -9,12 +9,6 @@ Bootstrap modular y auditable para preparar estaciones Debian desde una
 instalación limpia. La capacidad del hardware se usa como recomendación, pero
 el usuario decide por separado qué herramientas, controles y ajustes instalar.
 
-## Gobernanza (leer primero si sos un LLM o agente)
-
-1. [AGENTS.md](./AGENTS.md) — reglas obligatorias de trabajo y autoridad del repo.
-2. [CLAUDE.md](./CLAUDE.md) — adaptador de arranque y referencia de comandos/arquitectura para Claude.
-3. [LLM.md](./LLM.md) — adaptador de arranque para cualquier otro LLM.
-
 ## Qué ofrece
 
 | Área | Capacidades |
