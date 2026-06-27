@@ -243,6 +243,17 @@ grep -q '^ENABLE_FIREWALL=0$' "$wizard_security_output"
 grep -q 'reduce la postura de seguridad' "$wizard_security_output"
 rm -f "$wizard_security_output"
 
+confirm_prompt_output="$(mktemp)"
+printf 'y\n' |
+  NO_COLOR=1 bash -c '
+    source "'"$ROOT_DIR"'/lib/common.sh"
+    init_ui
+    confirm "Pregunta de prueba" "s"
+  ' >"$confirm_prompt_output" 2>&1
+grep -q '\[Y/n\]' "$confirm_prompt_output"
+! grep -q '\[S/n\]' "$confirm_prompt_output"
+rm -f "$confirm_prompt_output"
+
 wizard_components_output="$(mktemp)"
 # Inputs (GUI mode, no cli-tools prompt):
 #   n=tools, n=desktop, n=optimization, n=firewall, s=confirm-skip-firewall,
@@ -327,6 +338,32 @@ grep -q 'Debloat:       sin candidatos' "$gui_wizard_output"
 ! grep -q 'Escenario del equipo' "$gui_wizard_output"
 rm -f "$gui_wizard_output"
 rm -rf "$gui_wizard_bin"
+
+debloat_wizard_output="$(mktemp)"
+debloat_wizard_bin="$(mktemp -d)"
+cat >"$debloat_wizard_bin/dpkg-query" <<'EOF'
+#!/usr/bin/env bash
+package="${@: -1}"
+case "$package" in
+  vim|xfce4-goodies)
+    printf 'install ok installed\n'
+    exit 0
+    ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$debloat_wizard_bin/dpkg-query"
+printf '1\n' |
+  PATH="$debloat_wizard_bin:$PATH" NO_COLOR=1 bash -c '
+    source "'"$ROOT_DIR"'/lib/common.sh"
+    source "'"$ROOT_DIR"'/lib/wizard.sh"
+    init_ui
+    DESKTOP=xfce
+    wizard_debloat_packages
+  ' >"$debloat_wizard_output" 2>/dev/null
+grep -q '^__all__:vim$' "$debloat_wizard_output"
+rm -f "$debloat_wizard_output"
+rm -rf "$debloat_wizard_bin"
 
 critical_output="$(mktemp)"
 critical_bin="$(mktemp -d)"
@@ -604,6 +641,26 @@ PATH="$debloat_bin:$PATH" DEBLOAT_PACKAGES='vim' DRY_RUN=1 \
 grep -q 'Debloat quedó en modo auditoría/simulación' "$debloat_output"
 rm -rf "$debloat_bin"
 rm -f "$debloat_output"
+
+debloat_all_bin="$(mktemp -d)"
+debloat_all_output="$(mktemp)"
+cat >"$debloat_all_bin/apt-get" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "-s" && "${2:-}" == "purge" ]]; then
+  printf 'Remv vim [2.0]\n'
+  exit 0
+fi
+printf 'apt-get %s\n' "$*"
+EOF
+chmod +x "$debloat_all_bin/apt-get"
+PATH="$debloat_all_bin:$PATH" DEBLOAT_PACKAGES='vim' DEBLOAT_MODE=all DRY_RUN=0 \
+  TARGET_USER=operador INSTALL_MODE=gui DESKTOP=xfce PROFILE=media NO_COLOR=1 \
+  bash "$ROOT_DIR/scripts/optional/install.sh" debloat >"$debloat_all_output" 2>&1
+grep -q 'Debloat ALL: se aplica purge después de simulación validada.' "$debloat_all_output"
+grep -q 'apt-get purge -y vim' "$debloat_all_output"
+grep -q 'apt-get autoremove -y' "$debloat_all_output"
+rm -rf "$debloat_all_bin"
+rm -f "$debloat_all_output"
 
 if DEBLOAT_PACKAGES='nano' DRY_RUN=1 TARGET_USER=operador INSTALL_MODE=cli \
   PROFILE=media NO_COLOR=1 bash "$ROOT_DIR/scripts/optional/install.sh" debloat \

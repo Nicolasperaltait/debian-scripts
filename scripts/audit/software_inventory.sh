@@ -70,14 +70,14 @@ desktop_hint() {
   case "$desktop" in
     xfce)
       case "$package" in
-        libreoffice*|thunderbird*|rhythmbox*|shotwell*|simple-scan|cheese|gnome-games*|aisleriot|four-in-a-row|gnome-mahjongg|gnome-mines|gnome-sudoku|tali|hitori|gnome-tetravex|gnome-robots|gnome-chess|xfce4-notes-plugin|mousepad|xfce4-terminal|xfce4-goodies|vim|vim-*|neovim)
+        libreoffice*|thunderbird*|rhythmbox*|shotwell*|simple-scan|cheese|gnome-games*|aisleriot|four-in-a-row|gnome-mahjongg|gnome-mines|gnome-sudoku|tali|hitori|gnome-tetravex|gnome-robots|gnome-chess|xfce4-notes-plugin|mousepad|xfce4-terminal|vim|vim-*|neovim)
           printf 'candidata XFCE'
           ;;
       esac
       ;;
     lxqt)
       case "$package" in
-        libreoffice*|thunderbird*|rhythmbox*|shotwell*|simple-scan|cheese|gnome-games*|aisleriot|four-in-a-row|gnome-mahjongg|gnome-mines|gnome-sudoku|tali|hitori|gnome-tetravex|gnome-robots|gnome-chess|lxqt*|qterminal|featherpad|screengrab|qalculate-gtk|vim|vim-*|neovim)
+        libreoffice*|thunderbird*|rhythmbox*|shotwell*|simple-scan|cheese|gnome-games*|aisleriot|four-in-a-row|gnome-mahjongg|gnome-mines|gnome-sudoku|tali|hitori|gnome-tetravex|gnome-robots|gnome-chess|featherpad|screengrab|qalculate-gtk|vim|vim-*|neovim)
           printf 'candidata LXQt'
           ;;
       esac

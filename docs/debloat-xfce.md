@@ -9,14 +9,14 @@ sistema de forma automática.
 - Marcar candidatos antes de borrar.
 - No eliminar paquetes esenciales o de soporte del escritorio sin validación.
 
-## Candidatos inici ales
+## Candidatos iniciales
 
 Completar con los nombres exactos detectados en el equipo:
 
 - LibreOffice: `libreoffice*`
 - Editores no usados: `vim`, `vim-tiny`, `vim-common`, `vim-runtime`, `neovim`
 - Juegos: `aisleriot`, `gnome-*`, `quadrapassel`, `gnome-mahjongg`, `gnome-mines`
-- Utilidades opcionales: `mousepad`, `xfce4-notes-plugin`, `xfce4-goodies`
+- Utilidades opcionales: `mousepad`, `xfce4-notes-plugin`
 - Multimedia no usada: `rhythmbox`, `cheese`, `shotwell`
 - Escaneo/impresión si no se usa: `simple-scan`, `system-config-printer`
 - Comunicación no usada: `thunderbird`
@@ -29,6 +29,7 @@ Completar con los nombres exactos detectados en el equipo:
 - `xfwm4`
 - `lightdm`
 - `network-manager-gnome`
+- `xfce4-goodies`
 
 ## Resultado esperado
 

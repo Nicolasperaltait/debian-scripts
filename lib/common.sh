@@ -45,11 +45,27 @@ choose() {
 confirm() {
   local prompt="$1"
   local default="${2:-n}"
-  local suffix="[s/N]" answer
-  [[ "$default" == "s" ]] && suffix="[S/n]"
+  local suffix="[y/N]" answer normalized_default normalized_answer
+  normalized_default="${default,,}"
+  [[ "$normalized_default" =~ ^(s|y|yes|si|sí)$ ]] && suffix="[Y/n]"
   read -r -p "$prompt $suffix " answer
   answer="${answer:-$default}"
-  [[ "$answer" =~ ^[sS]$ ]]
+  normalized_answer="${answer,,}"
+  [[ "$normalized_answer" =~ ^(s|y|yes|si|sí)$ ]]
+}
+
+is_protected_debloat_package() {
+  local package="$1"
+  local protected_list protected
+
+  protected_list="${BASE_PACKAGES:-} ${CLI_PACKAGES:-} ${CLI_PACKAGES_DEBIAN_12:-} ${CLI_PACKAGES_DEBIAN_13:-} \
+${XFCE_PACKAGES:-} ${LXQT_PACKAGES:-} ${FIREWALL_PACKAGES:-} ${AUTO_UPDATE_PACKAGES:-} \
+${SECURITY_HARDENING_PACKAGES:-} ${SSH_HARDENING_PACKAGES:-} \
+openssh-server network-manager-gnome lightdm apparmor ufw xrdp xorgxrdp"
+  for protected in $protected_list; do
+    [[ "$package" == "$protected" ]] && return 0
+  done
+  return 1
 }
 
 validate_firewall_source() {
@@ -285,6 +301,23 @@ mark_reboot_required() {
   export REBOOT_REQUIRED
 }
 
+offer_reboot_if_required() {
+  [[ "${REBOOT_REQUIRED:-0}" -eq 1 ]] || return 0
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    info "DRY-RUN: se omite pregunta de reinicio."
+    return 0
+  fi
+  if [[ "${ASSUME_YES:-0}" -eq 1 || ! -t 0 ]]; then
+    warn "Reinicio recomendado; no se reinicia automáticamente en modo no interactivo."
+    return 0
+  fi
+  if confirm "¿Querés reiniciar ahora?" "n"; then
+    run systemctl reboot
+  else
+    warn "Reinicio omitido por decisión del usuario."
+  fi
+}
+
 report_add() {
   local category="$1"
   local component="$2"
@@ -373,6 +406,7 @@ final_summary() {
   info "Informe Markdown: $REPORT_FILE"
   if [[ "$REBOOT_REQUIRED" -eq 1 ]]; then
     warn "Se recomienda reiniciar manualmente."
+    offer_reboot_if_required
   else
     info "No se programó ningún reinicio automático."
   fi

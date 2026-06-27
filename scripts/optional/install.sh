@@ -347,19 +347,6 @@ run_maintenance() {
   [[ "$selected" -eq 1 ]] || fail "No se seleccionaron tareas de mantenimiento."
 }
 
-is_protected_debloat_package() {
-  local package="$1"
-  local protected_list protected
-
-  protected_list="$BASE_PACKAGES $CLI_PACKAGES $CLI_PACKAGES_DEBIAN_12 $CLI_PACKAGES_DEBIAN_13 $XFCE_PACKAGES $LXQT_PACKAGES \
-$FIREWALL_PACKAGES $AUTO_UPDATE_PACKAGES $SECURITY_HARDENING_PACKAGES $SSH_HARDENING_PACKAGES \
-openssh-server network-manager-gnome lightdm apparmor ufw xrdp xorgxrdp"
-  for protected in $protected_list; do
-    [[ "$package" == "$protected" ]] && return 0
-  done
-  return 1
-}
-
 run_debloat() {
   local package simulate_output removed_package
   local -a packages=()
@@ -382,7 +369,19 @@ run_debloat() {
       fail "La simulación afectaría un paquete protegido: $removed_package"
   done < <(printf '%s\n' "$simulate_output" | awk '/^Remv / {print $2}')
 
-  if [[ "$DRY_RUN" -eq 1 || ! -t 0 ]]; then
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    info "Debloat quedó en modo auditoría/simulación; no se aplicaron cambios."
+    return 0
+  fi
+
+  if [[ "${DEBLOAT_MODE:-confirm}" == "all" ]]; then
+    info "Debloat ALL: se aplica purge después de simulación validada."
+    run apt-get purge -y "${packages[@]}"
+    run apt-get autoremove -y
+    return 0
+  fi
+
+  if [[ ! -t 0 ]]; then
     info "Debloat quedó en modo auditoría/simulación; no se aplicaron cambios."
     return 0
   fi

@@ -30,6 +30,7 @@ NVIDIA_POLICY=""
 NVIDIA_USER_MODEL=""
 DEBLOAT_PACKAGES=""
 DEBLOAT_STATUS="omitido"
+DEBLOAT_MODE="confirm"
 UPGRADE_SYSTEM=1
 COMPONENTS_ONLY=""
 COMPONENTS_SKIP=""
@@ -347,6 +348,7 @@ run_module() {
     NVIDIA_PRESENT="$NVIDIA_PRESENT" NVIDIA_MODEL="$NVIDIA_MODEL" \
     NVIDIA_POLICY="$NVIDIA_POLICY" NVIDIA_USER_MODEL="$NVIDIA_USER_MODEL" \
     DEBLOAT_PACKAGES="$DEBLOAT_PACKAGES" DEBLOAT_STATUS="$DEBLOAT_STATUS" \
+    DEBLOAT_MODE="$DEBLOAT_MODE" \
     INSTALL_BASE_TOOLS="$INSTALL_BASE_TOOLS" INSTALL_CLI_TOOLS="$INSTALL_CLI_TOOLS" \
     ENABLE_FIREWALL="$ENABLE_FIREWALL" ENABLE_AUTO_UPDATES="$ENABLE_AUTO_UPDATES" \
     ENABLE_SSH="$ENABLE_SSH" SSH_PUBKEY="${SSH_PUBKEY:-}" \
@@ -431,7 +433,7 @@ report_optional_modules() {
 }
 
 main() {
-  local recommended recommended_desktop user_spec additional_user additional_role _ssh_home audit_status
+  local recommended recommended_desktop user_spec additional_user additional_role _ssh_home audit_status debloat_selection
 
   parse_args "$@"
   init_ui
@@ -538,17 +540,31 @@ main() {
   classify_app_selections
   if [[ ( -z "$DEBLOAT_PACKAGES" && "$ASSUME_YES" -eq 0 ) &&
     ( "$INSTALL_MODE" == "gui" || ",$EXTRAS," == *,debloat,* ) ]]; then
-    DEBLOAT_PACKAGES="$(wizard_debloat_packages)"
-    case "$DEBLOAT_PACKAGES" in
+    debloat_selection="$(wizard_debloat_packages)"
+    case "$debloat_selection" in
       __sin_candidatos__)
         DEBLOAT_PACKAGES=""
         DEBLOAT_STATUS="sin candidatos"
+        DEBLOAT_MODE="confirm"
         EXTRAS="$(csv_remove_item "$EXTRAS" "debloat")"
         ;;
       "")
         DEBLOAT_STATUS="omitido"
+        DEBLOAT_MODE="confirm"
+        ;;
+      __all__:*)
+        DEBLOAT_PACKAGES="${debloat_selection#__all__:}"
+        DEBLOAT_MODE="all"
+        DEBLOAT_STATUS="ALL: purge automático tras simulación"
+        ;;
+      __ask__:*)
+        DEBLOAT_PACKAGES="${debloat_selection#__ask__:}"
+        DEBLOAT_MODE="confirm"
+        DEBLOAT_STATUS="YES: pendiente de simulación y confirmación"
         ;;
       *)
+        DEBLOAT_PACKAGES="$debloat_selection"
+        DEBLOAT_MODE="confirm"
         DEBLOAT_STATUS="pendiente de simulación"
         ;;
     esac

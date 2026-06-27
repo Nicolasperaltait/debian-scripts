@@ -16,7 +16,7 @@ Completar con los nombres exactos detectados en el equipo:
 - LibreOffice: `libreoffice*`
 - Editores no usados: `vim`, `vim-tiny`, `vim-common`, `vim-runtime`, `neovim`
 - Juegos: `aisleriot`, `gnome-*`, `quadrapassel`, `gnome-mahjongg`, `gnome-mines`
-- Utilidades opcionales: `featherpad`, `screengrab`, `qterminal`
+- Utilidades opcionales: `featherpad`, `screengrab`
 - Multimedia no usada: `rhythmbox`, `cheese`, `shotwell`
 - Escaneo/impresión si no se usa: `simple-scan`, `system-config-printer`
 - Comunicación no usada: `thunderbird`
@@ -29,6 +29,7 @@ Completar con los nombres exactos detectados en el equipo:
 - `lxqt-session`
 - `pcmanfm-qt`
 - `openbox`
+- `qterminal`
 - `sddm` o el display manager elegido
 - `network-manager-gnome`
 

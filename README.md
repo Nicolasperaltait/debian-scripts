@@ -221,7 +221,11 @@ SSH ni XRDP.
 - Cada app se instala como paso recuperable: si una falla, el instalador avisa,
   pregunta si continúa y deja el fallo registrado en el informe.
 - Si se detecta NVIDIA, el wizard exige una decisión explícita antes de instalar drivers.
-- En `gui`, el wizard muestra siempre debloat seguro; primero inventario y simulación `apt-get -s purge`.
+- En `gui`, el wizard muestra siempre debloat seguro con tres opciones:
+  `ALL` purga todos los candidatos seguros tras la simulación, `YES` permite
+  elegir paquetes, y `NO` omite el debloat.
+- Los prompts usan `Y/N`; se acepta `S` por compatibilidad, pero no se muestra
+  como opción principal.
 
 ## Pruebas
 

@@ -258,38 +258,63 @@ debloat_candidates_for_desktop() {
 }
 
 wizard_debloat_packages() {
-  local package
+  local option package
+  local joined=""
   local -a options=()
+  local -a candidates=()
   local selection=""
 
   section "Debloat seguro" >&2
   for package in $(debloat_candidates_for_desktop); do
+    if is_protected_debloat_package "$package"; then
+      warn "Se omite candidato protegido de debloat: $package" >&2
+      continue
+    fi
     if dpkg-query -W -f='${Status}\n' "$package" 2>/dev/null | grep -q 'install ok installed'; then
+      candidates+=("$package")
       options+=("$package" "Candidata de debloat" OFF)
     fi
   done
 
-  ((${#options[@]})) || {
+  ((${#candidates[@]})) || {
     info "No hay paquetes candidatos instalados para debloat." >&2
     printf '__sin_candidatos__'
     return 0
   }
 
+  joined="$(IFS=,; printf '%s' "${candidates[*]}")"
+  info "Candidatos seguros detectados: $joined" >&2
+  option="$(choose "Debloat seguro" \
+    "ALL - purgar todos los candidatos tras la simulación" \
+    "YES - elegir paquetes uno por uno" \
+    "NO - ignorar debloat y seguir")"
+
+  case "$option" in
+    1)
+      printf '__all__:%s' "$joined"
+      return 0
+      ;;
+    3)
+      printf ''
+      return 0
+      ;;
+  esac
+
   selection="$(choose_checklist "Debloat seguro" \
     "Marcá paquetes para auditar con apt-get -s purge." "${options[@]}")" || true
   if [[ -n "$selection" ]]; then
-    printf '%s' "$selection"
+    printf '__ask__:%s' "$selection"
     return
   fi
 
   local -a result=()
-  for package in $(debloat_candidates_for_desktop); do
-    if dpkg-query -W -f='${Status}\n' "$package" 2>/dev/null | grep -q 'install ok installed' &&
-      confirm "¿Auditar paquete candidata a purge: $package?" "n"; then
+  for package in "${candidates[@]}"; do
+    if confirm "¿Auditar paquete candidata a purge: $package?" "n"; then
       result+=("$package")
     fi
   done
-  printf '%s' "$(IFS=,; printf '%s' "${result[*]}")"
+  joined="$(IFS=,; printf '%s' "${result[*]}")"
+  [[ -n "$joined" ]] && printf '__ask__:%s' "$joined"
 }
 
 wizard_extras() {
