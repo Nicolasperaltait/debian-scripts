@@ -32,7 +32,11 @@ else
 fi
 
 if [[ "${INSTALL_CLI_TOOLS:-0}" -eq 1 ]]; then
-  read -r -a cli <<<"$CLI_PACKAGES"
+  case "${DEBIAN_VERSION:-}" in
+    12) read -r -a cli <<<"$CLI_PACKAGES_DEBIAN_12" ;;
+    13) read -r -a cli <<<"$CLI_PACKAGES_DEBIAN_13" ;;
+    *) read -r -a cli <<<"$CLI_PACKAGES" ;;
+  esac
   apt_install "${cli[@]}"
 else
   info "Herramientas CLI adicionales omitidas por decisión del usuario."

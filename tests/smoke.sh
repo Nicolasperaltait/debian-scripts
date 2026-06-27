@@ -135,6 +135,24 @@ grep -q 'Actualización completa omitida por decisión del usuario.' "$skip_upgr
 ! grep -q 'apt-get upgrade -y' "$skip_upgrade_output"
 rm -f "$skip_upgrade_output"
 
+cli_tools_deb13_output="$(mktemp)"
+DEBIAN_SCRIPTS_TEST=1 TEST_DEBIAN_VERSION=13 TEST_RAM_MB=8192 \
+  TEST_CPU_THREADS=4 NO_COLOR=1 \
+  bash "$ROOT_DIR/main.sh" --dry-run --user operador --mode cli \
+  --profile media --components cli-tools --skip-upgrade --yes \
+  >"$cli_tools_deb13_output" 2>&1
+grep -q 'nano htop fastfetch' "$cli_tools_deb13_output"
+rm -f "$cli_tools_deb13_output"
+
+cli_tools_deb12_output="$(mktemp)"
+DEBIAN_SCRIPTS_TEST=1 TEST_DEBIAN_VERSION=12 TEST_DEBIAN_CODENAME=bookworm \
+  TEST_RAM_MB=8192 TEST_CPU_THREADS=4 NO_COLOR=1 \
+  bash "$ROOT_DIR/main.sh" --dry-run --user operador --mode cli \
+  --profile media --components cli-tools --skip-upgrade --yes \
+  >"$cli_tools_deb12_output" 2>&1
+grep -q 'nano htop neofetch' "$cli_tools_deb12_output"
+rm -f "$cli_tools_deb12_output"
+
 components_output="$(mktemp)"
 DEBIAN_SCRIPTS_TEST=1 TEST_DEBIAN_VERSION=13 TEST_RAM_MB=32768 \
   TEST_CPU_THREADS=8 NO_COLOR=1 \

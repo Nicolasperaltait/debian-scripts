@@ -9,7 +9,7 @@ limitado puede conservar todos los controles de seguridad.
 | Identificador | Alcance | Predeterminado |
 |---|---|---|
 | `tools` | Herramientas generales de administración | Sí |
-| `cli-tools` | `nano` | Sí en modo CLI |
+| `cli-tools` | Debian 13: `nano`, `htop`, `fastfetch`; Debian 12: `nano`, `htop`, `neofetch` | Sí en modo CLI |
 | `desktop` | Instalación o ampliación de XFCE/LXQt | Sí en modo GUI |
 | `optimization` | Ajustes del perfil y tuning conservador de VM si aplica | Sí |
 | `firewall` | UFW con entrada denegada por defecto | Sí |

@@ -298,7 +298,7 @@ is_protected_debloat_package() {
   local package="$1"
   local protected_list protected
 
-  protected_list="$BASE_PACKAGES $CLI_PACKAGES $XFCE_PACKAGES $LXQT_PACKAGES \
+  protected_list="$BASE_PACKAGES $CLI_PACKAGES $CLI_PACKAGES_DEBIAN_12 $CLI_PACKAGES_DEBIAN_13 $XFCE_PACKAGES $LXQT_PACKAGES \
 $FIREWALL_PACKAGES $AUTO_UPDATE_PACKAGES $SECURITY_HARDENING_PACKAGES $SSH_HARDENING_PACKAGES \
 openssh-server network-manager-gnome lightdm apparmor ufw xrdp xorgxrdp"
   for protected in $protected_list; do
