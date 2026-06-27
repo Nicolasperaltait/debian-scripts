@@ -97,6 +97,10 @@ if [[ "${ENABLE_FIREWALL:-1}" -eq 1 ]]; then
     fi
   fi
 
+  if [[ -n "$ssh_source" && "$ssh_source" != "cancel" && -n "${LOG_FILE:-}" ]]; then
+    printf '%s\n' "$ssh_source" >"${LOG_FILE%.log}.sshsource"
+  fi
+
   run ufw default deny incoming
   run ufw default allow outgoing
   run ufw --force enable

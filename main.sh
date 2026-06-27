@@ -46,6 +46,7 @@ ENABLE_OPTIMIZATION=1
 ENABLE_HARDENING=1
 ENABLE_SSH=1
 ENABLE_AUDIT=0
+FIREWALL_SSH_SOURCE=""
 ASSUME_YES=0
 CURRENT_STEP=0
 TOTAL_STEPS=1
@@ -352,6 +353,7 @@ run_module() {
     INSTALL_BASE_TOOLS="$INSTALL_BASE_TOOLS" INSTALL_CLI_TOOLS="$INSTALL_CLI_TOOLS" \
     ENABLE_FIREWALL="$ENABLE_FIREWALL" ENABLE_AUTO_UPDATES="$ENABLE_AUTO_UPDATES" \
     ENABLE_SSH="$ENABLE_SSH" SSH_PUBKEY="${SSH_PUBKEY:-}" \
+    FIREWALL_SSH_SOURCE="${FIREWALL_SSH_SOURCE:-}" \
     ARCH="$ARCH" DEBIAN_VERSION="$DEBIAN_VERSION" RAM_MB="$RAM_MB" CPU_THREADS="$CPU_THREADS" \
     IS_VM="$IS_VM" VIRTUALIZATION_TYPE="$VIRTUALIZATION_TYPE" \
     bash "$script" "$@"; then
@@ -634,6 +636,10 @@ main() {
 
   if [[ "$ENABLE_SECURITY_BASELINE" -eq 1 ]]; then
     run_module "Seguridad base" "$ROOT_DIR/scripts/security/baseline.sh"
+    _sshsource_file="${LOG_FILE%.log}.sshsource"
+    if [[ -s "$_sshsource_file" ]]; then
+      FIREWALL_SSH_SOURCE="$(<"$_sshsource_file")"
+    fi
   fi
   if [[ "$ENABLE_FIREWALL" -eq 1 ]]; then
     report_add "Seguridad" "Firewall UFW"

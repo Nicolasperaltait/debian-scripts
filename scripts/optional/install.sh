@@ -26,7 +26,12 @@ install_ssh() {
     return 0
   fi
   local source
-  source="$(choose_firewall_source "SSH")"
+  if [[ -n "${FIREWALL_SSH_SOURCE:-}" ]]; then
+    source="$FIREWALL_SSH_SOURCE"
+    info "Reutilizando origen SSH ya definido: $source"
+  else
+    source="$(choose_firewall_source "SSH")"
+  fi
   apt_install openssh-server
   prepare_remote_firewall
   run systemctl enable --now ssh
