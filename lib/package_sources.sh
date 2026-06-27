@@ -130,12 +130,9 @@ ensure_vscode_repo() {
 }
 
 ensure_librewolf_repo() {
-  local keyring="/etc/apt/keyrings/librewolf.gpg"
-  local repo_file="/etc/apt/sources.list.d/librewolf.list"
-
-  download_keyring "https://deb.librewolf.net/keyring.gpg" "$keyring"
-  write_file "$repo_file" \
-    "deb [arch=amd64 signed-by=$keyring] https://deb.librewolf.net ${DEBIAN_CODENAME} main"
+  apt_install extrepo
+  run extrepo enable librewolf
+  run extrepo update librewolf
 }
 
 ensure_vendor_app_sources() {

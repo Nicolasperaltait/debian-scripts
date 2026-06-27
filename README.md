@@ -212,7 +212,7 @@ SSH ni XRDP.
 ## Apps, NVIDIA y debloat
 
 - En `gui`, el wizard muestra siempre la selección de aplicaciones de escritorio con prioridad APT.
-- Chrome, VS Code y LibreWolf usan repositorios oficiales APT del proveedor.
+- Chrome y VS Code usan repositorios APT del proveedor; LibreWolf se habilita por `extrepo`.
 - Obsidian, VLC, Bitwarden y Remmina usan Flatpak solo cuando se seleccionan.
 - Si se detecta NVIDIA, el wizard exige una decisión explícita antes de instalar drivers.
 - En `gui`, el wizard muestra siempre debloat seguro; primero inventario y simulación `apt-get -s purge`.

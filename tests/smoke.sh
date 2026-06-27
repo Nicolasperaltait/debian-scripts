@@ -372,6 +372,13 @@ GUI_APP_SELECTIONS='chrome,vlc' \
 grep -q 'google-chrome-stable' "$critical_output"
 grep -q 'flatpak install -y flathub org.videolan.VLC' "$critical_output"
 
+GUI_APP_SELECTIONS='librewolf' \
+  DRY_RUN=1 TARGET_USER=operador INSTALL_MODE=gui PROFILE=media NO_COLOR=1 \
+  bash "$ROOT_DIR/scripts/base/install.sh" >"$critical_output" 2>&1
+grep -q 'apt-get install -y --no-install-recommends extrepo' "$critical_output"
+grep -q 'extrepo enable librewolf' "$critical_output"
+grep -q 'extrepo update librewolf' "$critical_output"
+
 cat >"$critical_bin/timedatectl" <<'EOF'
 #!/usr/bin/env bash
 case "${1:-}" in
