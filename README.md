@@ -49,7 +49,9 @@ sudo bash main.sh --dry-run \
   --desktop lxqt \
   --profile baja \
   --components tools,desktop,optimization,firewall,auto-updates,hardening,audit \
-  --extras ssh,zsh,clamav,rkhunter \
+  --extras ssh,zsh,clamav,rkhunter,apps \
+  --apps obsidian,vlc \
+  --nvidia audit \
   --yes
 ```
 
@@ -200,7 +202,7 @@ El informe también se imprime en la terminal:
 | Seguridad       | Hardening reforzado            | Aplicado |
 | Personalización | Zsh y modificación de terminal | Aplicado |
 | Seguridad       | ClamAV bajo demanda            | Aplicado |
-| Validación      | Auditoría postinstalación bajos recursos | Correcto |
+| Validación      | Auditoría final del sistema    | Correcto |
 ```
 
 ## Preset para bajos recursos
@@ -212,6 +214,14 @@ QTerminal, ZRAM y límites conservadores de `journald`.
 
 No deshabilita automáticamente NetworkManager, impresión, Bluetooth, Avahi,
 SSH ni XRDP.
+
+## Apps, NVIDIA y debloat
+
+- En `gui`, el extra `apps` permite seleccionar aplicaciones de escritorio con prioridad APT.
+- Chrome, VS Code y LibreWolf usan repositorios oficiales APT del proveedor.
+- Obsidian, VLC, Bitwarden y Remmina usan Flatpak solo cuando se seleccionan.
+- Si se detecta NVIDIA, el wizard exige una decisión explícita antes de instalar drivers.
+- El extra `debloat` simula `apt-get -s purge` antes de permitir cualquier eliminación.
 
 ## Pruebas
 
@@ -235,6 +245,9 @@ La integración continua valida:
 - [Modelo de seguridad](docs/security.md)
 - [Perfiles de recursos](docs/profiles.md)
 - [Selección de componentes](docs/components.md)
+- [Debloat XFCE](docs/debloat-xfce.md)
+- [Debloat LXQt](docs/debloat-lxqt.md)
+- [Preset GUI liviana - pendientes y validación](docs/pending-gui-low-resource-analysis.md)
 - [Revisión para publicación](docs/public-security-review.md)
 
 ## Estado del proyecto

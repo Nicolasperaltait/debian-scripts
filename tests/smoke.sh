@@ -294,9 +294,10 @@ grep -q 'apt-get upgrade -y' "$critical_output"
 grep -q 'apt-get clean' "$critical_output"
 ! grep -q 'apt-get autoremove -y' "$critical_output"
 
-printf 's\nn\nn\nn\n' |
+GUI_APP_SELECTIONS='chrome,vlc' \
   DRY_RUN=1 TARGET_USER=operador INSTALL_MODE=gui PROFILE=media NO_COLOR=1 \
   bash "$ROOT_DIR/scripts/optional/install.sh" apps >"$critical_output" 2>&1
+grep -q 'google-chrome-stable' "$critical_output"
 grep -q 'flatpak install -y flathub org.videolan.VLC' "$critical_output"
 
 cat >"$critical_bin/timedatectl" <<'EOF'
@@ -330,7 +331,8 @@ cat >"$ssh_baseline_bin/systemctl" <<'EOF'
 [[ "${1:-}" == "is-active" && "${3:-}" == "ssh" ]]
 EOF
 chmod +x "$ssh_baseline_bin/systemctl"
-PATH="$ssh_baseline_bin:$PATH" FIREWALL_SSH_SOURCE='192.0.2.0/24' \
+env -u SSH_CONNECTION -u SSH_CLIENT -u SSH_TTY \
+  PATH="$ssh_baseline_bin:$PATH" FIREWALL_SSH_SOURCE='192.0.2.0/24' \
   DRY_RUN=1 NO_COLOR=1 \
   bash "$ROOT_DIR/scripts/security/baseline.sh" >"$ssh_baseline_output" 2>&1
 grep -q 'ufw limit from 192.0.2.0/24 to any port 22 proto tcp' "$ssh_baseline_output"
@@ -339,7 +341,8 @@ ssh_rule_line="$(grep -n 'ufw limit from 192.0.2.0/24 to any port 22 proto tcp' 
 default_deny_line="$(grep -n 'ufw default deny incoming' "$ssh_baseline_output" | cut -d: -f1)"
 ((ssh_rule_line < default_deny_line))
 
-if PATH="$ssh_baseline_bin:$PATH" DRY_RUN=1 NO_COLOR=1 \
+if env -u SSH_CONNECTION -u SSH_CLIENT -u SSH_TTY \
+  PATH="$ssh_baseline_bin:$PATH" DRY_RUN=1 NO_COLOR=1 \
   bash "$ROOT_DIR/scripts/security/baseline.sh" </dev/null \
   >"$ssh_baseline_output" 2>&1; then
   echo "ERROR: UFW se activó sin una regla SSH en modo no interactivo" >&2
@@ -351,7 +354,7 @@ rm -f "$ssh_baseline_output"
 rm -rf "$ssh_baseline_bin"
 
 for debian_version in 12 13; do
-  c200_output="$(mktemp)"
+  gui_low_resource_output="$(mktemp)"
   DEBIAN_SCRIPTS_TEST=1 \
     TEST_DEBIAN_VERSION="$debian_version" \
     TEST_RAM_MB=2048 \
@@ -364,45 +367,63 @@ for debian_version in 12 13; do
       --mode cli \
       --profile ultra \
       --components tools,optimization,audit \
-      --yes >"$c200_output" 2>&1
+      --yes >"$gui_low_resource_output" 2>&1
 
-  grep -q "Preset:        gui-low-resource" "$c200_output"
-  grep -q "Instalación:   cli" "$c200_output"
-  grep -q "Escritorio:    ninguno" "$c200_output"
-  grep -q "Perfil:        ultra" "$c200_output"
-  grep -q "Las recomendaciones no reemplazan tus selecciones" "$c200_output"
-  grep -q "systemctl enable --now preload" "$c200_output"
-  grep -q "Auditoría final del sistema" "$c200_output"
-  ! grep -q "lxqt-core" "$c200_output"
-  ! grep -q "systemd-zram-generator" "$c200_output"
-  if grep -q "disable --now bluetooth" "$c200_output"; then
-    echo "ERROR: bajos recursos intenta deshabilitar Bluetooth" >&2
+  grep -q "Preset:        gui-low-resource" "$gui_low_resource_output"
+  grep -q "Instalación:   cli" "$gui_low_resource_output"
+  grep -q "Escritorio:    ninguno" "$gui_low_resource_output"
+  grep -q "Perfil:        ultra" "$gui_low_resource_output"
+  grep -q "Las recomendaciones no reemplazan tus selecciones" "$gui_low_resource_output"
+  grep -q "systemctl enable --now preload" "$gui_low_resource_output"
+  grep -q "Auditoría final del sistema" "$gui_low_resource_output"
+  ! grep -q "lxqt-core" "$gui_low_resource_output"
+  ! grep -q "systemd-zram-generator" "$gui_low_resource_output"
+  if grep -q "disable --now bluetooth" "$gui_low_resource_output"; then
+    echo "ERROR: gui-low-resource intenta deshabilitar Bluetooth" >&2
     exit 1
   fi
-  if grep -q "disable --now avahi-daemon" "$c200_output"; then
-    echo "ERROR: bajos recursos intenta deshabilitar Avahi" >&2
+  if grep -q "disable --now avahi-daemon" "$gui_low_resource_output"; then
+    echo "ERROR: gui-low-resource intenta deshabilitar Avahi" >&2
     exit 1
   fi
-  if grep -q "disable --now cups" "$c200_output"; then
-    echo "ERROR: bajos recursos intenta deshabilitar impresión" >&2
+  if grep -q "disable --now cups" "$gui_low_resource_output"; then
+    echo "ERROR: gui-low-resource intenta deshabilitar impresión" >&2
     exit 1
   fi
-  rm -f "$c200_output"
+  rm -f "$gui_low_resource_output"
 done
 
-c200_recommended_output="$(mktemp)"
+gui_low_resource_recommended_output="$(mktemp)"
 DEBIAN_SCRIPTS_TEST=1 TEST_DEBIAN_VERSION=13 TEST_RAM_MB=2048 \
   TEST_CPU_THREADS=2 NO_COLOR=1 \
   bash "$ROOT_DIR/main.sh" --dry-run --user operador \
   --preset gui-low-resource --mode gui --desktop lxqt --profile baja \
   --components desktop,optimization,audit --extras gammastep --yes \
-  >"$c200_recommended_output" 2>&1
-grep -q 'lxqt-core' "$c200_recommended_output"
-grep -q 'systemd-zram-generator' "$c200_recommended_output"
-grep -q 'zram-generator.conf' "$c200_recommended_output"
-grep -q 'gammastep-toggle-90' "$c200_recommended_output"
-grep -q 'Auditoría final del sistema' "$c200_recommended_output"
-rm -f "$c200_recommended_output"
+  >"$gui_low_resource_recommended_output" 2>&1
+grep -q 'lxqt-core' "$gui_low_resource_recommended_output"
+grep -q 'systemd-zram-generator' "$gui_low_resource_recommended_output"
+grep -q 'zram-generator.conf' "$gui_low_resource_recommended_output"
+grep -q 'gammastep-toggle-90' "$gui_low_resource_recommended_output"
+grep -q 'Auditoría final del sistema' "$gui_low_resource_recommended_output"
+rm -f "$gui_low_resource_recommended_output"
+
+nvidia_output="$(mktemp)"
+DEBIAN_SCRIPTS_TEST=1 TEST_DEBIAN_VERSION=13 TEST_RAM_MB=8192 \
+  TEST_CPU_THREADS=4 TEST_NVIDIA_PRESENT=1 TEST_NVIDIA_MODEL='NVIDIA Test GPU' \
+  NO_COLOR=1 bash "$ROOT_DIR/main.sh" --dry-run --user operador \
+  --mode gui --desktop xfce --profile media --nvidia audit --yes \
+  >"$nvidia_output" 2>&1
+grep -q 'GPU:       NVIDIA Test GPU' "$nvidia_output"
+grep -q 'NVIDIA:        audit' "$nvidia_output"
+rm -f "$nvidia_output"
+
+if DEBIAN_SCRIPTS_TEST=1 TEST_DEBIAN_VERSION=13 TEST_RAM_MB=8192 \
+  TEST_CPU_THREADS=4 TEST_NVIDIA_PRESENT=1 TEST_NVIDIA_MODEL='NVIDIA Test GPU' \
+  NO_COLOR=1 bash "$ROOT_DIR/main.sh" --dry-run --user operador \
+  --mode gui --desktop xfce --profile media --yes >/dev/null 2>&1; then
+  echo "ERROR: se aceptó NVIDIA sin política explícita en modo no interactivo" >&2
+  exit 1
+fi
 
 vmware_output="$(mktemp)"
 DEBIAN_SCRIPTS_TEST=1 TEST_DEBIAN_VERSION=13 TEST_RAM_MB=8192 \
@@ -464,6 +485,31 @@ done
 PATH="$audit_bin:$PATH" NO_COLOR=1 \
   bash "$ROOT_DIR/scripts/audit/gui-low-resource.sh" >"$audit_output" 2>&1
 grep -q '\[ OK \] No hay unidades systemd fallidas.' "$audit_output"
+
+debloat_bin="$(mktemp -d)"
+debloat_output="$(mktemp)"
+cat >"$debloat_bin/apt-get" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "-s" && "${2:-}" == "purge" ]]; then
+  printf 'Remv vim [2.0]\n'
+  exit 0
+fi
+printf 'apt-get %s\n' "$*"
+EOF
+chmod +x "$debloat_bin/apt-get"
+PATH="$debloat_bin:$PATH" DEBLOAT_PACKAGES='vim' DRY_RUN=1 \
+  TARGET_USER=operador INSTALL_MODE=gui DESKTOP=xfce PROFILE=media NO_COLOR=1 \
+  bash "$ROOT_DIR/scripts/optional/install.sh" debloat >"$debloat_output" 2>&1
+grep -q 'Debloat quedó en modo auditoría/simulación' "$debloat_output"
+rm -rf "$debloat_bin"
+rm -f "$debloat_output"
+
+if DEBLOAT_PACKAGES='nano' DRY_RUN=1 TARGET_USER=operador INSTALL_MODE=cli \
+  PROFILE=media NO_COLOR=1 bash "$ROOT_DIR/scripts/optional/install.sh" debloat \
+  >/dev/null 2>&1; then
+  echo "ERROR: se aceptó debloat de un paquete protegido" >&2
+  exit 1
+fi
 
 wazuh_output="$(DRY_RUN=1 bash "$ROOT_DIR/scripts/security/wazuh-agent.sh" \
   --manager wazuh.example.internal --version 4.14.5)"

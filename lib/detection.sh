@@ -8,6 +8,8 @@ CPU_THREADS=0
 DISK_FREE_GB=0
 IS_VM=0
 VIRTUALIZATION_TYPE="baremetal"
+NVIDIA_PRESENT=0
+NVIDIA_MODEL=""
 
 set_virtualization_type() {
   local value="${1:-auto}"
@@ -72,6 +74,30 @@ detect_virtualization() {
   esac
 }
 
+detect_nvidia() {
+  local line
+
+  if [[ "${DEBIAN_SCRIPTS_TEST:-0}" == "1" ]]; then
+    NVIDIA_PRESENT="${TEST_NVIDIA_PRESENT:-0}"
+    NVIDIA_MODEL="${TEST_NVIDIA_MODEL:-NVIDIA test adapter}"
+    [[ "$NVIDIA_PRESENT" -eq 1 ]] || NVIDIA_MODEL=""
+    return
+  fi
+
+  line=""
+  if command -v lspci >/dev/null 2>&1; then
+    line="$(lspci -nn 2>/dev/null | grep -Ei 'VGA|3D|Display' | grep -i 'NVIDIA' | head -1 || true)"
+  fi
+
+  if [[ -n "$line" ]]; then
+    NVIDIA_PRESENT=1
+    NVIDIA_MODEL="$line"
+  else
+    NVIDIA_PRESENT=0
+    NVIDIA_MODEL=""
+  fi
+}
+
 detect_system() {
   if [[ "${DEBIAN_SCRIPTS_TEST:-0}" == "1" ]]; then
     DEBIAN_VERSION="${TEST_DEBIAN_VERSION:-13}"
@@ -81,6 +107,7 @@ detect_system() {
     CPU_THREADS="${TEST_CPU_THREADS:-4}"
     DISK_FREE_GB="${TEST_DISK_FREE_GB:-40}"
     detect_virtualization
+    detect_nvidia
     return
   fi
 
@@ -96,6 +123,7 @@ detect_system() {
   CPU_THREADS="$(getconf _NPROCESSORS_ONLN)"
   DISK_FREE_GB="$(df -Pk / | awk 'NR==2 {printf "%d", $4/1024/1024}')"
   detect_virtualization
+  detect_nvidia
 }
 
 check_platform() {
@@ -157,4 +185,7 @@ show_system_summary() {
   printf '  CPU:       %s hilos\n' "$CPU_THREADS"
   printf '  Disco:     %s GB libres\n' "$DISK_FREE_GB"
   printf '  Entorno:   %s\n' "$([[ "$IS_VM" -eq 1 ]] && printf 'VM (%s)' "$VIRTUALIZATION_TYPE" || printf 'bare metal')"
+  if [[ "$NVIDIA_PRESENT" -eq 1 ]]; then
+    printf '  GPU:       %s\n' "$NVIDIA_MODEL"
+  fi
 }

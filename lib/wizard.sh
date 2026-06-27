@@ -1,5 +1,37 @@
 #!/usr/bin/env bash
 
+source "$ROOT_DIR/config/packages.conf"
+
+checklist_to_csv() {
+  awk '
+    {
+      gsub(/"/, "", $0)
+      for (i = 1; i <= NF; i++) {
+        if ($i != "") {
+          if (out != "") out = out ","
+          out = out $i
+        }
+      }
+    }
+    END { print out }
+  '
+}
+
+choose_checklist() {
+  local title="$1"
+  local prompt="$2"
+  shift 2
+
+  if command -v whiptail >/dev/null 2>&1 && [[ -t 1 ]]; then
+    local result
+    result="$(whiptail --title "$title" --checklist "$prompt" 22 84 12 "$@" 3>&1 1>&2 2>&3)" || return 1
+    printf '%s' "$result" | checklist_to_csv
+    return 0
+  fi
+
+  return 1
+}
+
 wizard_user() {
   local option custom invoking_user
   invoking_user="${SUDO_USER:-}"
@@ -60,7 +92,7 @@ wizard_preset() {
   local option
   option="$(choose "Escenario del equipo (solo recomendaciones)" \
     "General" \
-    "hardware de bajos recursos (recomienda LXQt, perfil baja y auditoría)")"
+    "GUI liviana (recomienda LXQt, perfil baja y auditoría)")"
   [[ "$option" == "1" ]] && printf 'general' || printf 'gui-low-resource'
 }
 
@@ -151,7 +183,7 @@ wizard_components() {
 
   if [[ "$INSTALL_MODE" == "cli" ]]; then
     wizard_component INSTALL_CLI_TOOLS \
-      "¿Instalar herramientas CLI adicionales (vim-tiny y tmux)?" "s"
+      "¿Instalar herramientas CLI adicionales (nano)?" "s"
   else
     INSTALL_CLI_TOOLS=0
   fi
@@ -177,6 +209,91 @@ wizard_components() {
     "¿Ejecutar una auditoría final de salud, servicios, red y puertos?" "s"
 }
 
+wizard_apps() {
+  local app_selection=""
+
+  app_selection="$(choose_checklist "Aplicaciones GUI" \
+    "Marcá las aplicaciones de escritorio a instalar." \
+    chrome "Google Chrome (APT oficial)" OFF \
+    code "Visual Studio Code (APT oficial)" OFF \
+    librewolf "LibreWolf (APT oficial)" OFF \
+    obsidian "Obsidian (Flatpak)" OFF \
+    vlc "VLC (Flatpak)" OFF \
+    bitwarden "Bitwarden (Flatpak)" OFF \
+    remmina "Remmina (Flatpak)" OFF)" || true
+  if [[ -n "$app_selection" ]]; then
+    printf '%s' "$app_selection"
+    return
+  fi
+
+  local result=()
+  confirm "¿Instalar Google Chrome (APT oficial)?" "n" && result+=("chrome")
+  confirm "¿Instalar Visual Studio Code (APT oficial)?" "n" && result+=("code")
+  confirm "¿Instalar LibreWolf (APT oficial)?" "n" && result+=("librewolf")
+  confirm "¿Instalar Obsidian (Flatpak)?" "n" && result+=("obsidian")
+  confirm "¿Instalar VLC (Flatpak)?" "n" && result+=("vlc")
+  confirm "¿Instalar Bitwarden (Flatpak)?" "n" && result+=("bitwarden")
+  confirm "¿Instalar Remmina (Flatpak)?" "n" && result+=("remmina")
+  printf '%s' "$(IFS=,; printf '%s' "${result[*]}")"
+}
+
+wizard_nvidia_policy() {
+  local option
+
+  info "GPU NVIDIA detectada: ${NVIDIA_MODEL:-NVIDIA}" >&2
+  option="$(choose "NVIDIA detectada" \
+    "Instalar driver recomendado" \
+    "Solo auditar, no instalar")"
+  if [[ "$option" == "1" ]]; then
+    if confirm "¿Conocés el modelo exacto de la GPU?" "n"; then
+      read -r -p "Modelo informado: " NVIDIA_USER_MODEL
+    fi
+    printf 'install'
+  else
+    printf 'audit'
+  fi
+}
+
+debloat_candidates_for_desktop() {
+  local list="$DEBLOAT_CANDIDATES_COMMON"
+  if [[ "$DESKTOP" == "xfce" ]]; then
+    list+=" $DEBLOAT_CANDIDATES_XFCE"
+  elif [[ "$DESKTOP" == "lxqt" ]]; then
+    list+=" $DEBLOAT_CANDIDATES_LXQT"
+  fi
+  printf '%s' "$list"
+}
+
+wizard_debloat_packages() {
+  local package
+  local -a options=()
+  local selection=""
+
+  for package in $(debloat_candidates_for_desktop); do
+    if dpkg-query -W -f='${Status}\n' "$package" 2>/dev/null | grep -q 'install ok installed'; then
+      options+=("$package" "Candidata de debloat" OFF)
+    fi
+  done
+
+  ((${#options[@]})) || return 0
+
+  selection="$(choose_checklist "Debloat seguro" \
+    "Marcá paquetes para auditar con apt-get -s purge." "${options[@]}")" || true
+  if [[ -n "$selection" ]]; then
+    printf '%s' "$selection"
+    return
+  fi
+
+  local -a result=()
+  for package in $(debloat_candidates_for_desktop); do
+    if dpkg-query -W -f='${Status}\n' "$package" 2>/dev/null | grep -q 'install ok installed' &&
+      confirm "¿Auditar paquete candidata a purge: $package?" "n"; then
+      result+=("$package")
+    fi
+  done
+  printf '%s' "$(IFS=,; printf '%s' "${result[*]}")"
+}
+
 wizard_extras() {
   local result=()
   local item label
@@ -189,7 +306,7 @@ wizard_extras() {
 ssh|OpenSSH y regla de firewall
 bluetooth|Bluetooth
 flatpak|Flatpak y Flathub
-apps|Aplicaciones Flatpak seleccionables
+apps|Aplicaciones GUI seleccionables
 zsh|Zsh y personalización de terminal
 fonts|Fuentes adicionales
 gammastep|Control de temperatura de pantalla
@@ -199,6 +316,7 @@ clamav|ClamAV
 rkhunter|Rootkit Hunter
 wazuh|Agente Wazuh
 maintenance|Mantenimiento APT
+debloat|Debloat seguro con simulación
 rtc|Zona horaria, NTP y RTC
 EOF
   local joined
@@ -212,7 +330,7 @@ validate_extras() {
   [[ -z "$value" ]] && return 0
   IFS=',' read -r -a items <<<"$value"
   for item in "${items[@]}"; do
-    [[ "$item" =~ ^(ssh|bluetooth|flatpak|apps|zsh|fonts|gammastep|omv|rdp|clamav|rkhunter|wazuh|maintenance|rtc)$ ]] ||
+    [[ "$item" =~ ^(ssh|bluetooth|flatpak|apps|zsh|fonts|gammastep|omv|rdp|clamav|rkhunter|wazuh|maintenance|debloat|rtc)$ ]] ||
       fail "Módulo opcional inválido: $item"
   done
 }
@@ -237,6 +355,18 @@ show_plan() {
   printf '  Escritorio:    %s\n' "$DESKTOP"
   printf '  Perfil:        %s\n' "$PROFILE"
   printf '  Extras:        %s\n' "${EXTRAS:-ninguno}"
+  printf '  Apps APT:      %s\n' "${APT_APP_SELECTIONS:-ninguna}"
+  printf '  Apps Flatpak:  %s\n' "${FLATPAK_APP_SELECTIONS:-ninguna}"
+  if [[ -n "${APT_APP_SELECTIONS:-}" || "${NVIDIA_POLICY:-}" == "install" ]]; then
+    printf '  Repos APT:     sí\n'
+  else
+    printf '  Repos APT:     no\n'
+  fi
+  printf '  NVIDIA:        %s\n' "${NVIDIA_POLICY:-sin cambios}"
+  if [[ -n "${NVIDIA_USER_MODEL:-}" ]]; then
+    printf '  Modelo NVIDIA: %s\n' "$NVIDIA_USER_MODEL"
+  fi
+  printf '  Debloat:       %s\n' "${DEBLOAT_PACKAGES:-ninguno}"
   printf '  Upgrade APT:   %s\n' "$([[ "$UPGRADE_SYSTEM" -eq 1 ]] && echo sí || echo no)"
   printf '  Herramientas:  %s\n' "$([[ "$INSTALL_BASE_TOOLS" -eq 1 ]] && echo "$enabled_text" || echo "$disabled_text")"
   printf '  Herram. CLI:   %s\n' "$([[ "$INSTALL_CLI_TOOLS" -eq 1 ]] && echo "$enabled_text" || echo "$disabled_text")"

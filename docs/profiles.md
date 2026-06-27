@@ -20,7 +20,7 @@ se recomienda LXQt.
 La detección toma como límite el componente más débil. No se aplican
 parámetros de kernel experimentales.
 
-## Preset bajos recursos
+## Preset GUI Liviana
 
 `gui-low-resource` recomienda GUI LXQt, perfil Baja y auditoría
 postinstalación, pero no fuerza esas elecciones. Si se selecciona

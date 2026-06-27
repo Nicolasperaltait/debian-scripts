@@ -91,7 +91,7 @@ Si un dato no aparece en estas fuentes: S/D. No completar por suposición. Ante 
 - OMV, RDP y Wazuh requieren selección explícita; nunca se agregan por defecto.
 - Ningún archivo versionado lleva secretos, nombres personales, IPs privadas ni `legacy-source/`/`.tmp/`.
 - Las contraseñas nunca se imprimen en logs; los archivos reemplazados bajo `/etc` se respaldan en `/var/backups/debian-scripts/`.
-- Los módulos no hacen `source` de `lib/`: reciben estado solo por variables de entorno (contrato de `run_module()`).
+- Los módulos reciben estado por variables de entorno (contrato de `run_module()`). Pueden cargar helpers compartidos de `lib/` cuando no introduzcan estado global oculto ni salteen `DRY_RUN`.
 
 ## 7. Principios operativos no negociables
 

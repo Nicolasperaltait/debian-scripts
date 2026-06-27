@@ -117,11 +117,11 @@ sysmini() {
   echo; echo "===== SERVICIOS FALLIDOS ====="; systemctl --failed --no-pager
 }
 
-# Prompt: [OK]/[FAIL] hora usuario@host IP ruta
+# Prompt: [OK]/[FAIL] usuario@host IP ruta hora
 __bash_prompt() {
   local exit_code="$?"
   local reset="\[\e[0m\]" green="\[\e[32m\]" red="\[\e[31m\]"
-  local cyan="\[\e[36m\]"  yellow="\[\e[33m\]" blue="\[\e[34m\]"
+  local cyan="\[\e[36m\]" yellow="\[\e[33m\]"
   local status_label status_color ip_addr
   ip_addr="$(ip route get 1.1.1.1 2>/dev/null \
     | awk '{for(i=1;i<=NF;i++) if ($i=="src") {print $(i+1); exit}}')"
@@ -131,7 +131,7 @@ __bash_prompt() {
   else
     status_label="FAIL"; status_color="$red"
   fi
-  PS1="${status_color}[${status_label}]${reset} ${yellow}\A${reset} ${cyan}\u@\h${reset} ${blue}${ip_addr}${reset} \w \\$ "
+  PS1="${status_color}[${status_label}]${reset} ${cyan}\u@\h${reset} ${yellow}${ip_addr}${reset} \w \\$ \A "
 }
 
 PROMPT_COMMAND="__bash_prompt; history -a; history -c; history -r"

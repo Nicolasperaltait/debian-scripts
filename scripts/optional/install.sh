@@ -4,6 +4,7 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly ROOT_DIR
 source "$ROOT_DIR/lib/common.sh"
+source "$ROOT_DIR/lib/package_sources.sh"
 source "$ROOT_DIR/config/packages.conf"
 init_ui
 
@@ -47,16 +48,52 @@ install_flatpak() {
   run flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 }
 
-install_apps() {
-  local app
-  local -a apps=()
+app_flatpak_ref() {
+  case "$1" in
+    obsidian) printf 'md.obsidian.Obsidian' ;;
+    vlc) printf 'org.videolan.VLC' ;;
+    bitwarden) printf 'com.bitwarden.desktop' ;;
+    remmina) printf 'org.remmina.Remmina' ;;
+    *) return 1 ;;
+  esac
+}
 
-  install_flatpak
-  for app in $FLATPAK_APPS; do
-    confirm "¿Instalar $app?" "n" && apps+=("$app")
+install_apps() {
+  local app ref
+  local -a flatpak_refs=()
+  local -a selected_apps=()
+
+  if [[ -n "${GUI_APP_SELECTIONS:-}" ]]; then
+    IFS=',' read -r -a selected_apps <<<"$GUI_APP_SELECTIONS"
+  else
+    confirm "¿Instalar Google Chrome (APT oficial)?" "n" && selected_apps+=("chrome")
+    confirm "¿Instalar Visual Studio Code (APT oficial)?" "n" && selected_apps+=("code")
+    confirm "¿Instalar LibreWolf (APT oficial)?" "n" && selected_apps+=("librewolf")
+    confirm "¿Instalar Obsidian (Flatpak)?" "n" && selected_apps+=("obsidian")
+    confirm "¿Instalar VLC (Flatpak)?" "n" && selected_apps+=("vlc")
+    confirm "¿Instalar Bitwarden (Flatpak)?" "n" && selected_apps+=("bitwarden")
+    confirm "¿Instalar Remmina (Flatpak)?" "n" && selected_apps+=("remmina")
+  fi
+
+  ((${#selected_apps[@]})) || fail "No se seleccionaron aplicaciones GUI."
+
+  for app in "${selected_apps[@]}"; do
+    case "$app" in
+      chrome) apt_install google-chrome-stable ;;
+      code) apt_install code ;;
+      librewolf) apt_install librewolf ;;
+      obsidian|vlc|bitwarden|remmina)
+        ref="$(app_flatpak_ref "$app")"
+        flatpak_refs+=("$ref")
+        ;;
+      *) fail "Aplicación GUI no soportada: $app" ;;
+    esac
   done
-  ((${#apps[@]})) || fail "No se seleccionaron aplicaciones Flatpak."
-  run flatpak install -y flathub "${apps[@]}"
+
+  if ((${#flatpak_refs[@]})); then
+    install_flatpak
+    run flatpak install -y flathub "${flatpak_refs[@]}"
+  fi
 }
 
 install_zsh() {
@@ -191,6 +228,7 @@ install_rdp() {
   apt_install xrdp xorgxrdp
   prepare_remote_firewall
   local session="startlxqt"
+  # shellcheck disable=SC2153
   [[ "$DESKTOP" == "xfce" ]] && session="startxfce4"
   local home
   if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -256,6 +294,54 @@ run_maintenance() {
   [[ "$selected" -eq 1 ]] || fail "No se seleccionaron tareas de mantenimiento."
 }
 
+is_protected_debloat_package() {
+  local package="$1"
+  local protected_list protected
+
+  protected_list="$BASE_PACKAGES $CLI_PACKAGES $XFCE_PACKAGES $LXQT_PACKAGES \
+$FIREWALL_PACKAGES $AUTO_UPDATE_PACKAGES $SECURITY_HARDENING_PACKAGES $SSH_HARDENING_PACKAGES \
+openssh-server network-manager-gnome lightdm apparmor ufw xrdp xorgxrdp"
+  for protected in $protected_list; do
+    [[ "$package" == "$protected" ]] && return 0
+  done
+  return 1
+}
+
+run_debloat() {
+  local package simulate_output removed_package
+  local -a packages=()
+
+  [[ -n "${DEBLOAT_PACKAGES:-}" ]] || fail "Debloat requiere DEBLOAT_PACKAGES."
+  IFS=',' read -r -a packages <<<"$DEBLOAT_PACKAGES"
+
+  for package in "${packages[@]}"; do
+    is_protected_debloat_package "$package" &&
+      fail "Debloat rechazado: $package forma parte de un conjunto protegido."
+  done
+
+  section "Debloat seguro - simulación"
+  simulate_output="$(apt-get -s purge "${packages[@]}" 2>&1 || true)"
+  printf '%s\n' "$simulate_output"
+
+  while IFS= read -r removed_package; do
+    [[ -n "$removed_package" ]] || continue
+    is_protected_debloat_package "$removed_package" &&
+      fail "La simulación afectaría un paquete protegido: $removed_package"
+  done < <(printf '%s\n' "$simulate_output" | awk '/^Remv / {print $2}')
+
+  if [[ "$DRY_RUN" -eq 1 || ! -t 0 ]]; then
+    info "Debloat quedó en modo auditoría/simulación; no se aplicaron cambios."
+    return 0
+  fi
+
+  confirm "¿Aplicar el purge mostrado?" "n" || {
+    info "Debloat cancelado después de la simulación."
+    return 0
+  }
+  run apt-get purge -y "${packages[@]}"
+  run apt-get autoremove -y
+}
+
 fix_rtc() {
   local current_timezone timezone
   current_timezone="$(timedatectl show --property=Timezone --value 2>/dev/null || printf 'UTC')"
@@ -287,6 +373,7 @@ for extra in "${extras[@]}"; do
     rkhunter) install_rkhunter ;;
     wazuh) install_wazuh ;;
     maintenance) run_maintenance ;;
+    debloat) run_debloat ;;
     rtc) fix_rtc ;;
     *) fail "Extra no soportado: $extra" ;;
   esac

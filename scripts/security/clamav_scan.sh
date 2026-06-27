@@ -63,7 +63,7 @@ run_cmd() {
 }
 
 START_TS=0
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 finalize() {
   local exit_code=$?
   local duration=0

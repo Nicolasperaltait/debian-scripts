@@ -9,13 +9,13 @@ limitado puede conservar todos los controles de seguridad.
 | Identificador | Alcance | Predeterminado |
 |---|---|---|
 | `tools` | Herramientas generales de administración | Sí |
-| `cli-tools` | `vim-tiny` y `tmux` | Sí en modo CLI |
+| `cli-tools` | `nano` | Sí en modo CLI |
 | `desktop` | Instalación o ampliación de XFCE/LXQt | Sí en modo GUI |
 | `optimization` | Ajustes del perfil y tuning conservador de VM si aplica | Sí |
 | `firewall` | UFW con entrada denegada por defecto | Sí |
 | `auto-updates` | Actualizaciones automáticas de seguridad | Sí |
 | `hardening` | AppArmor, sysctl conservador y protección SSH | Sí |
-| `audit` | Estado de memoria, swap, disco, servicios, red y puertos | bajos recursos o selección explícita |
+| `audit` | Estado de memoria, swap, disco, servicios, red y puertos | Preset GUI liviana o selección explícita |
 
 La actualización de índices APT se ejecuta como preparación común porque los
 componentes seleccionados pueden necesitar instalar paquetes. La actualización

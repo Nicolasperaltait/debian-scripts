@@ -34,7 +34,7 @@ sudo bash main.sh --dry-run \
   --user operador --preset gui-low-resource \
   --mode gui --desktop lxqt --profile baja \
   --components tools,desktop,optimization,firewall,auto-updates,hardening,audit \
-  --extras ssh,zsh,clamav,rkhunter --yes
+  --extras ssh,zsh,clamav,rkhunter,apps --apps obsidian --nvidia audit --yes
 ```
 
 **Interactive wizard:**
@@ -59,7 +59,7 @@ scripts/
   optimization/apply.sh   # Profile-based tuning (baja/media/alta/ultra)
   optional/install.sh     # Dispatcher for all --extras (ssh, zsh, flatpak, rdp, etc.)
   audit/system-health.sh  # Post-install audit
-  audit/gui-low-resource.sh  # gui-low-resource preset audit
+  audit/gui-low-resource.sh   # GUI low-resource audit
   maintenance/            # Standalone maintenance scripts
 config/packages.conf      # Package lists consumed by install scripts
 tests/
@@ -68,7 +68,7 @@ tests/
 instalar-*.sh             # One-liner bootstrap launcher (clones repo and runs wizard)
 ```
 
-**`run_module()` contract:** each module is called as a subprocess with all state passed as environment variables (`DRY_RUN`, `LOG_FILE`, `TARGET_USER`, `PROFILE`, `EXTRAS`, `ARCH`, `DEBIAN_VERSION`, etc.). Modules must not `source` lib files themselves — they receive state only through env vars.
+**`run_module()` contract:** each module is called as a subprocess with state passed as environment variables (`DRY_RUN`, `LOG_FILE`, `TARGET_USER`, `PROFILE`, `EXTRAS`, `ARCH`, `DEBIAN_VERSION`, etc.). Modules may source shared helpers from `lib/` only when those helpers do not introduce hidden global state or bypass `DRY_RUN`.
 
 ## Shell conventions
 

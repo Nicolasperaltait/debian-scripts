@@ -12,6 +12,8 @@ source "$ROOT_DIR/lib/detection.sh"
 source "$ROOT_DIR/lib/users.sh"
 # shellcheck source=lib/wizard.sh
 source "$ROOT_DIR/lib/wizard.sh"
+# shellcheck source=lib/package_sources.sh
+source "$ROOT_DIR/lib/package_sources.sh"
 
 TARGET_USER=""
 ADDITIONAL_USERS=()
@@ -21,6 +23,12 @@ INSTALL_MODE=""
 DESKTOP=""
 PROFILE=""
 EXTRAS=""
+GUI_APP_SELECTIONS=""
+APT_APP_SELECTIONS=""
+FLATPAK_APP_SELECTIONS=""
+NVIDIA_POLICY=""
+NVIDIA_USER_MODEL=""
+DEBLOAT_PACKAGES=""
 UPGRADE_SYSTEM=1
 COMPONENTS_ONLY=""
 COMPONENTS_SKIP=""
@@ -51,12 +59,16 @@ Opciones:
   --add-user USUARIO:ROL Usuario adicional; ROL es admin o standard.
                          Se puede repetir.
   --preset general|gui-low-resource
-                         bajos recursos recomienda GUI + LXQt + perfil baja
+                         GUI liviana recomienda LXQt + perfil baja
   --virtualization auto|baremetal|vm|vmware
                          Entorno destino; auto detecta y el wizard confirma
   --mode cli|gui         Tipo de instalación
   --desktop xfce|lxqt    Escritorio para modo GUI
   --profile baja|media|alta|ultra
+  --apps LISTA           Apps GUI separadas por coma (chrome,code,librewolf,obsidian,vlc,bitwarden,remmina)
+  --nvidia install|audit Política para GPU NVIDIA detectada
+  --debloat-packages LISTA
+                         Paquetes separados por coma para auditar/purgar con debloat seguro
   --components LISTA     Selección exacta de componentes principales
   --skip-components LISTA
                          Componentes principales que se deben omitir
@@ -68,7 +80,7 @@ Opciones:
 
 Extras:
   ssh, bluetooth, flatpak, apps, zsh, fonts, gammastep, omv, rdp,
-  clamav, rkhunter, wazuh, maintenance, rtc
+  clamav, rkhunter, wazuh, maintenance, debloat, rtc
 
 Componentes principales:
   tools, cli-tools, desktop, optimization, firewall, auto-updates,
@@ -87,6 +99,9 @@ parse_args() {
       --mode) INSTALL_MODE="${2:-}"; shift 2 ;;
       --desktop) DESKTOP="${2:-}"; shift 2 ;;
       --profile) PROFILE="${2:-}"; shift 2 ;;
+      --apps) GUI_APP_SELECTIONS="${2:-}"; shift 2 ;;
+      --nvidia) NVIDIA_POLICY="${2:-}"; shift 2 ;;
+      --debloat-packages) DEBLOAT_PACKAGES="${2:-}"; shift 2 ;;
       --components)
         COMPONENTS_ONLY="${2:-}"
         COMPONENTS_ONLY_SET=1
@@ -206,17 +221,35 @@ validate_selection() {
     fail "Virtualización inválida: $VIRTUALIZATION_SELECTION"
   [[ "$INSTALL_MODE" =~ ^(cli|gui)$ ]] || fail "Modo inválido: $INSTALL_MODE"
   [[ "$PROFILE" =~ ^(baja|media|alta|ultra)$ ]] || fail "Perfil inválido: $PROFILE"
+  [[ -z "$NVIDIA_POLICY" || "$NVIDIA_POLICY" =~ ^(install|audit)$ ]] ||
+    fail "Política NVIDIA inválida: $NVIDIA_POLICY"
 
   if [[ "$INSTALL_MODE" == "gui" ]]; then
     [[ "$DESKTOP" =~ ^(xfce|lxqt)$ ]] || fail "Escritorio inválido: $DESKTOP"
   else
     DESKTOP="ninguno"
+    [[ -z "$GUI_APP_SELECTIONS" ]] || fail "--apps requiere --mode gui."
   fi
 
   validate_extras "$EXTRAS"
+  validate_app_selections "$GUI_APP_SELECTIONS"
+  classify_app_selections
 
   if [[ "$ENABLE_DESKTOP" -eq 1 && "$INSTALL_MODE" != "gui" ]]; then
     fail "El componente desktop requiere --mode gui."
+  fi
+
+  if [[ "$ASSUME_YES" -eq 1 && "$NVIDIA_PRESENT" -eq 1 && -z "$NVIDIA_POLICY" ]]; then
+    fail "NVIDIA detectada: definí --nvidia install|audit para ejecución no interactiva."
+  fi
+  if [[ "$ASSUME_YES" -eq 1 && ",$EXTRAS," == *,apps,* && -z "$GUI_APP_SELECTIONS" ]]; then
+    fail "El extra apps requiere --apps en modo no interactivo."
+  fi
+  if [[ "$ASSUME_YES" -eq 1 && ",$EXTRAS," == *,debloat,* && -z "$DEBLOAT_PACKAGES" ]]; then
+    fail "El extra debloat requiere --debloat-packages en modo no interactivo."
+  fi
+  if [[ ",$EXTRAS," == *,debloat,* && -z "$DEBLOAT_PACKAGES" ]]; then
+    fail "El extra debloat requiere al menos un paquete candidato."
   fi
 
   seen_users["$TARGET_USER"]=1
@@ -236,6 +269,37 @@ validate_selection() {
   fi
 }
 
+validate_app_selections() {
+  local value="${1:-}" item
+  [[ -z "$value" ]] && return 0
+  IFS=',' read -r -a items <<<"$value"
+  for item in "${items[@]}"; do
+    [[ "$item" =~ ^(chrome|code|librewolf|obsidian|vlc|bitwarden|remmina)$ ]] ||
+      fail "Aplicación GUI inválida: $item"
+  done
+}
+
+classify_app_selections() {
+  local item
+  local -a apt_apps=()
+  local -a flatpak_apps=()
+
+  APT_APP_SELECTIONS=""
+  FLATPAK_APP_SELECTIONS=""
+  [[ -n "$GUI_APP_SELECTIONS" ]] || return 0
+
+  IFS=',' read -r -a _gui_apps <<<"$GUI_APP_SELECTIONS"
+  for item in "${_gui_apps[@]}"; do
+    case "$item" in
+      chrome|code|librewolf) apt_apps+=("$item") ;;
+      obsidian|vlc|bitwarden|remmina) flatpak_apps+=("$item") ;;
+    esac
+  done
+
+  APT_APP_SELECTIONS="$(IFS=,; printf '%s' "${apt_apps[*]}")"
+  FLATPAK_APP_SELECTIONS="$(IFS=,; printf '%s' "${flatpak_apps[*]}")"
+}
+
 run_module() {
   local label="$1"
   local script="$2"
@@ -247,6 +311,12 @@ run_module() {
   if DRY_RUN="$DRY_RUN" LOG_FILE="$LOG_FILE" TARGET_USER="$TARGET_USER" \
     PRESET="$PRESET" INSTALL_MODE="$INSTALL_MODE" DESKTOP="$DESKTOP" PROFILE="$PROFILE" \
     EXTRAS="$EXTRAS" UPGRADE_SYSTEM="$UPGRADE_SYSTEM" \
+    GUI_APP_SELECTIONS="$GUI_APP_SELECTIONS" \
+    APT_APP_SELECTIONS="$APT_APP_SELECTIONS" \
+    FLATPAK_APP_SELECTIONS="$FLATPAK_APP_SELECTIONS" \
+    NVIDIA_PRESENT="$NVIDIA_PRESENT" NVIDIA_MODEL="$NVIDIA_MODEL" \
+    NVIDIA_POLICY="$NVIDIA_POLICY" NVIDIA_USER_MODEL="$NVIDIA_USER_MODEL" \
+    DEBLOAT_PACKAGES="$DEBLOAT_PACKAGES" \
     INSTALL_BASE_TOOLS="$INSTALL_BASE_TOOLS" INSTALL_CLI_TOOLS="$INSTALL_CLI_TOOLS" \
     ENABLE_FIREWALL="$ENABLE_FIREWALL" ENABLE_AUTO_UPDATES="$ENABLE_AUTO_UPDATES" \
     ENABLE_SSH="$ENABLE_SSH" SSH_PUBKEY="${SSH_PUBKEY:-}" \
@@ -273,7 +343,15 @@ report_optional_modules() {
         ;;
       bluetooth) category="Hardware"; component="Bluetooth" ;;
       flatpak) category="Aplicaciones"; component="Flatpak y repositorio Flathub" ;;
-      apps) category="Aplicaciones"; component="Aplicaciones Flatpak" ;;
+      apps)
+        if [[ -n "$APT_APP_SELECTIONS" ]]; then
+          report_add "Aplicaciones" "Apps APT: $APT_APP_SELECTIONS"
+        fi
+        if [[ -n "$FLATPAK_APP_SELECTIONS" ]]; then
+          report_add "Aplicaciones" "Apps Flatpak: $FLATPAK_APP_SELECTIONS"
+        fi
+        continue
+        ;;
       zsh) category="Personalización"; component="Zsh y modificación de terminal" ;;
       fonts) category="Personalización"; component="Fuentes de escritorio y terminal" ;;
       gammastep) category="Personalización"; component="Control de pantalla Gammastep" ;;
@@ -290,6 +368,7 @@ report_optional_modules() {
       rkhunter) category="Seguridad"; component="Rootkit Hunter" ;;
       wazuh) category="Seguridad"; component="Agente Wazuh" ;;
       maintenance) category="Mantenimiento"; component="Actualización y limpieza APT" ;;
+      debloat) category="Mantenimiento"; component="Debloat seguro (${DEBLOAT_PACKAGES:-sin selección})" ;;
       rtc) category="Sistema"; component="Hora, NTP y RTC" ;;
       *) continue ;;
     esac
@@ -342,7 +421,7 @@ main() {
   fi
 
   if [[ "$PRESET" == "gui-low-resource" ]]; then
-    info "Escenario bajos recursos: se recomienda GUI, LXQt, perfil baja y auditoría final."
+    info "Preset GUI liviana: se recomienda LXQt, perfil baja y auditoría final."
     info "Las recomendaciones no reemplazan tus selecciones."
   fi
 
@@ -370,6 +449,13 @@ main() {
     PROFILE="$(wizard_profile "$recommended")"
   fi
 
+  if [[ "$NVIDIA_PRESENT" -eq 1 && -z "$NVIDIA_POLICY" ]]; then
+    if [[ "$ASSUME_YES" -eq 1 ]]; then
+      fail "NVIDIA detectada: definí --nvidia install|audit para ejecución no interactiva."
+    fi
+    NVIDIA_POLICY="$(wizard_nvidia_policy)"
+  fi
+
   if [[ "$INSTALL_MODE" == "gui" && "$RAM_MB" -lt 4096 && "$DESKTOP" == "xfce" ]]; then
     warn "Con menos de 4 GB de RAM se recomienda LXQt."
     if confirm "¿Cambiar a LXQt?" "s"; then
@@ -389,6 +475,14 @@ main() {
 
   if [[ -z "$EXTRAS" && "$ASSUME_YES" -eq 0 ]]; then
     EXTRAS="$(wizard_extras)"
+  fi
+
+  if [[ "$INSTALL_MODE" == "gui" && ",$EXTRAS," == *,apps,* && -z "$GUI_APP_SELECTIONS" && "$ASSUME_YES" -eq 0 ]]; then
+    GUI_APP_SELECTIONS="$(wizard_apps)"
+  fi
+  classify_app_selections
+  if [[ ",$EXTRAS," == *,debloat,* && -z "$DEBLOAT_PACKAGES" && "$ASSUME_YES" -eq 0 ]]; then
+    DEBLOAT_PACKAGES="$(wizard_debloat_packages)"
   fi
 
   validate_selection
@@ -420,6 +514,9 @@ main() {
   fi
   run_module "Preparación APT y herramientas" "$ROOT_DIR/scripts/base/install.sh"
   report_add "Sistema" "Índices de paquetes APT"
+  if selected_apps_need_vendor_sources || [[ "$NVIDIA_POLICY" == "install" ]]; then
+    report_add "Sistema" "Repositorios APT adicionales"
+  fi
   if [[ "$INSTALL_BASE_TOOLS" -eq 1 ]]; then
     report_add "Sistema" "Herramientas generales de administración"
   else
@@ -471,9 +568,14 @@ main() {
   if [[ "$ENABLE_DESKTOP" -eq 1 ]]; then
     run_module "Escritorio $DESKTOP" "$ROOT_DIR/scripts/desktop/install.sh"
     report_add "Entorno gráfico" "Escritorio ${DESKTOP^^}"
+    # shellcheck disable=SC2034
     REBOOT_REQUIRED=1
   else
     report_add "Entorno gráfico" "Instalación de escritorio" "Omitido"
+  fi
+
+  if [[ "$NVIDIA_PRESENT" -eq 1 ]]; then
+    report_add "Hardware" "NVIDIA (${NVIDIA_POLICY:-audit})"
   fi
 
   if [[ "$ENABLE_OPTIMIZATION" -eq 1 ]]; then
