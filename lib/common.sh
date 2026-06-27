@@ -149,6 +149,41 @@ warn() { printf '%s[WARN]%s %s\n' "$C_YELLOW" "$C_RESET" "$*" >&2; }
 error() { printf '%s[ERROR]%s %s\n' "$C_RED" "$C_RESET" "$*" >&2; }
 fail() { error "$*"; exit 1; }
 
+record_recoverable_failure() {
+  local label="$1"
+
+  log_line "RECOVERABLE_FAILURE: $label"
+  if [[ -n "${RECOVERABLE_FAILURES_FILE:-}" ]]; then
+    printf '%s\n' "$label" >>"$RECOVERABLE_FAILURES_FILE" || true
+  fi
+}
+
+continue_after_recoverable_failure() {
+  local label="$1"
+
+  warn "Falló: $label"
+  record_recoverable_failure "$label"
+  if [[ "${ASSUME_YES:-0}" -eq 1 || "${DEBIAN_SCRIPTS_TEST:-0}" == "1" || ! -t 0 ]]; then
+    warn "Se continúa automáticamente después del fallo recuperable: $label"
+    return 0
+  fi
+  confirm "Falló $label. ¿Deseás continuar con el resto?" "s"
+}
+
+run_recoverable_step() {
+  local label="$1"
+  shift
+
+  RECOVERABLE_STEP_FAILED=0
+  if ( "$@" ); then
+    return 0
+  fi
+  # shellcheck disable=SC2034 # variable de salida leída por el llamador
+  RECOVERABLE_STEP_FAILED=1
+  continue_after_recoverable_failure "$label" || return 1
+  warn "Se continúa sin completar: $label"
+}
+
 log_line() {
   [[ -n "$LOG_FILE" ]] || return 0
   if [[ "$SESSION_LOGGING" -eq 1 ]]; then

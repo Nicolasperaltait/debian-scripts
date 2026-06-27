@@ -58,9 +58,54 @@ app_flatpak_ref() {
   esac
 }
 
+app_label() {
+  case "$1" in
+    chrome) printf 'Google Chrome' ;;
+    code) printf 'Visual Studio Code' ;;
+    librewolf) printf 'LibreWolf' ;;
+    obsidian) printf 'Obsidian' ;;
+    vlc) printf 'VLC' ;;
+    bitwarden) printf 'Bitwarden' ;;
+    remmina) printf 'Remmina' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+ensure_app_apt_source() {
+  case "$1" in
+    chrome) ensure_google_chrome_repo ;;
+    code) ensure_vscode_repo ;;
+    librewolf) ensure_librewolf_repo ;;
+    *) fail "Aplicación APT no soportada: $1" ;;
+  esac
+}
+
+install_apt_gui_app() {
+  local app="$1" package
+
+  case "$app" in
+    chrome) package="google-chrome-stable" ;;
+    code) package="code" ;;
+    librewolf) package="librewolf" ;;
+    *) fail "Aplicación APT no soportada: $app" ;;
+  esac
+
+  install_repo_prerequisites
+  ensure_app_apt_source "$app"
+  run apt-get update
+  apt_install "$package"
+}
+
+install_flatpak_gui_app() {
+  local app="$1" ref
+
+  ref="$(app_flatpak_ref "$app")" || fail "Aplicación Flatpak no soportada: $app"
+  run flatpak install -y flathub "$ref"
+}
+
 install_apps() {
-  local app ref
-  local -a flatpak_refs=()
+  local app
+  local -a flatpak_apps=()
   local -a selected_apps=()
 
   if [[ -n "${GUI_APP_SELECTIONS:-}" ]]; then
@@ -79,20 +124,28 @@ install_apps() {
 
   for app in "${selected_apps[@]}"; do
     case "$app" in
-      chrome) apt_install google-chrome-stable ;;
-      code) apt_install code ;;
-      librewolf) apt_install librewolf ;;
+      chrome|code|librewolf)
+        run_recoverable_step "instalación de $(app_label "$app")" install_apt_gui_app "$app" ||
+          fail "Instalación cancelada por fallo en $(app_label "$app")."
+        ;;
       obsidian|vlc|bitwarden|remmina)
-        ref="$(app_flatpak_ref "$app")"
-        flatpak_refs+=("$ref")
+        flatpak_apps+=("$app")
         ;;
       *) fail "Aplicación GUI no soportada: $app" ;;
     esac
   done
 
-  if ((${#flatpak_refs[@]})); then
-    install_flatpak
-    run flatpak install -y flathub "${flatpak_refs[@]}"
+  if ((${#flatpak_apps[@]})); then
+    run_recoverable_step "Flatpak y Flathub" install_flatpak ||
+      fail "Instalación cancelada por fallo en Flatpak y Flathub."
+    if [[ "$RECOVERABLE_STEP_FAILED" -eq 1 ]]; then
+      warn "Se omiten las aplicaciones Flatpak seleccionadas porque falló Flatpak/Flathub."
+      return 0
+    fi
+    for app in "${flatpak_apps[@]}"; do
+      run_recoverable_step "instalación de $(app_label "$app")" install_flatpak_gui_app "$app" ||
+        fail "Instalación cancelada por fallo en $(app_label "$app")."
+    done
   fi
 }
 
@@ -356,10 +409,17 @@ fix_rtc() {
   run timedatectl set-ntp true
 }
 
-IFS=',' read -r -a extras <<<"$EXTRA_LIST"
-for extra in "${extras[@]}"; do
-  section "Extra: $extra"
-  case "$extra" in
+is_supported_extra() {
+  case "$1" in
+    ssh|bluetooth|flatpak|apps|zsh|fonts|gammastep|omv|rdp|clamav|rkhunter|wazuh|maintenance|debloat|rtc)
+      return 0
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+run_extra() {
+  case "$1" in
     ssh) install_ssh ;;
     bluetooth) install_bluetooth ;;
     flatpak) install_flatpak ;;
@@ -375,6 +435,19 @@ for extra in "${extras[@]}"; do
     maintenance) run_maintenance ;;
     debloat) run_debloat ;;
     rtc) fix_rtc ;;
-    *) fail "Extra no soportado: $extra" ;;
+    *) fail "Extra no soportado: $1" ;;
   esac
+}
+
+IFS=',' read -r -a extras <<<"$EXTRA_LIST"
+for extra in "${extras[@]}"; do
+  [[ -n "$extra" ]] || continue
+  is_supported_extra "$extra" || fail "Extra no soportado: $extra"
+  section "Extra: $extra"
+  if [[ "$extra" =~ ^(apps|debloat)$ ]]; then
+    run_extra "$extra"
+  else
+    run_recoverable_step "extra $extra" run_extra "$extra" ||
+      fail "Instalación cancelada por fallo en extra $extra."
+  fi
 done

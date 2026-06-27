@@ -58,6 +58,10 @@ sudo bash main.sh
 El instalador muestra el plan antes de aplicar cambios y nunca reinicia el
 equipo automáticamente. Los módulos críticos siempre solicitan sus parámetros
 y una confirmación específica, incluso cuando el plan general usa `--yes`.
+Los módulos recuperables, como escritorio, optimización, auditoría y extras,
+no cortan toda la ejecución ante un fallo aislado: muestran una alerta y
+preguntan si se debe continuar. En modo no interactivo registran la alerta y
+continúan automáticamente.
 
 El wizard permite elegir el usuario principal y agregar tantos usuarios
 adicionales como sean necesarios, cada uno como estándar o administrador. Para
@@ -214,6 +218,8 @@ SSH ni XRDP.
 - En `gui`, el wizard muestra siempre la selección de aplicaciones de escritorio con prioridad APT.
 - Chrome y VS Code usan repositorios APT del proveedor; LibreWolf se habilita por `extrepo`.
 - Obsidian, VLC, Bitwarden y Remmina usan Flatpak solo cuando se seleccionan.
+- Cada app se instala como paso recuperable: si una falla, el instalador avisa,
+  pregunta si continúa y deja el fallo registrado en el informe.
 - Si se detecta NVIDIA, el wizard exige una decisión explícita antes de instalar drivers.
 - En `gui`, el wizard muestra siempre debloat seguro; primero inventario y simulación `apt-get -s purge`.
 

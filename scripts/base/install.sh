@@ -14,10 +14,6 @@ if [[ "${NVIDIA_PRESENT:-0}" -eq 1 && "${NVIDIA_POLICY:-}" == "install" ]]; then
 fi
 
 run apt-get update
-if selected_apps_need_vendor_sources; then
-  ensure_vendor_app_sources
-  run apt-get update
-fi
 if [[ "${UPGRADE_SYSTEM:-1}" -eq 1 ]]; then
   run env DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 else

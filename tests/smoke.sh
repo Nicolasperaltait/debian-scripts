@@ -374,10 +374,32 @@ grep -q 'flatpak install -y flathub org.videolan.VLC' "$critical_output"
 
 GUI_APP_SELECTIONS='librewolf' \
   DRY_RUN=1 TARGET_USER=operador INSTALL_MODE=gui PROFILE=media NO_COLOR=1 \
-  bash "$ROOT_DIR/scripts/base/install.sh" >"$critical_output" 2>&1
+  bash "$ROOT_DIR/scripts/optional/install.sh" apps >"$critical_output" 2>&1
 grep -q 'apt-get install -y --no-install-recommends extrepo' "$critical_output"
 grep -q 'extrepo enable librewolf' "$critical_output"
 grep -q 'extrepo update librewolf' "$critical_output"
+
+recoverable_app_bin="$(mktemp -d)"
+cat >"$recoverable_app_bin/apt-get" <<'EOF'
+#!/usr/bin/env bash
+printf 'apt-get %s\n' "$*"
+EOF
+cat >"$recoverable_app_bin/flatpak" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "install" ]]; then
+  printf 'flatpak %s\n' "$*" >&2
+  exit 42
+fi
+printf 'flatpak %s\n' "$*"
+EOF
+chmod +x "$recoverable_app_bin/apt-get" "$recoverable_app_bin/flatpak"
+PATH="$recoverable_app_bin:$PATH" GUI_APP_SELECTIONS='obsidian' \
+  DEBIAN_SCRIPTS_TEST=1 DRY_RUN=0 TARGET_USER=operador INSTALL_MODE=gui \
+  PROFILE=media ASSUME_YES=1 NO_COLOR=1 \
+  bash "$ROOT_DIR/scripts/optional/install.sh" apps >"$critical_output" 2>&1
+grep -q 'Falló: instalación de Obsidian' "$critical_output"
+grep -q 'Se continúa sin completar: instalación de Obsidian' "$critical_output"
+rm -rf "$recoverable_app_bin"
 
 cat >"$critical_bin/timedatectl" <<'EOF'
 #!/usr/bin/env bash

@@ -48,6 +48,8 @@ ENABLE_AUDIT=0
 ASSUME_YES=0
 CURRENT_STEP=0
 TOTAL_STEPS=1
+RECOVERABLE_FAILURES_FILE=""
+RECOVERABLE_STEP_FAILED=0
 
 usage() {
   cat <<'EOF'
@@ -338,6 +340,7 @@ run_module() {
   if DRY_RUN="$DRY_RUN" LOG_FILE="$LOG_FILE" TARGET_USER="$TARGET_USER" \
     PRESET="$PRESET" INSTALL_MODE="$INSTALL_MODE" DESKTOP="$DESKTOP" PROFILE="$PROFILE" \
     EXTRAS="$EXTRAS" UPGRADE_SYSTEM="$UPGRADE_SYSTEM" \
+    ASSUME_YES="$ASSUME_YES" RECOVERABLE_FAILURES_FILE="$RECOVERABLE_FAILURES_FILE" \
     GUI_APP_SELECTIONS="$GUI_APP_SELECTIONS" \
     APT_APP_SELECTIONS="$APT_APP_SELECTIONS" \
     FLATPAK_APP_SELECTIONS="$FLATPAK_APP_SELECTIONS" \
@@ -355,6 +358,30 @@ run_module() {
     error "$label"
     return 1
   fi
+}
+
+run_module_recoverable() {
+  local label="$1"
+  shift
+
+  RECOVERABLE_STEP_FAILED=0
+  if run_module "$label" "$@"; then
+    return 0
+  fi
+  RECOVERABLE_STEP_FAILED=1
+  continue_after_recoverable_failure "$label" ||
+    fail "Operación cancelada por fallo en $label."
+  warn "Se continúa sin completar: $label"
+}
+
+report_recoverable_failures() {
+  local failure
+
+  [[ -n "$RECOVERABLE_FAILURES_FILE" && -s "$RECOVERABLE_FAILURES_FILE" ]] || return 0
+  while IFS= read -r failure; do
+    [[ -n "$failure" ]] || continue
+    report_add "Alertas" "$failure" "Falló / continuado"
+  done < <(sort -u "$RECOVERABLE_FAILURES_FILE")
 }
 
 report_optional_modules() {
@@ -404,7 +431,7 @@ report_optional_modules() {
 }
 
 main() {
-  local recommended recommended_desktop user_spec additional_user additional_role _ssh_home
+  local recommended recommended_desktop user_spec additional_user additional_role _ssh_home audit_status
 
   parse_args "$@"
   init_ui
@@ -415,6 +442,10 @@ main() {
   require_root_or_reexec "$@"
   init_log
   start_session_log
+  RECOVERABLE_FAILURES_FILE="${LOG_FILE%.log}.recoverable"
+  : >"$RECOVERABLE_FAILURES_FILE"
+  chmod 0640 "$RECOVERABLE_FAILURES_FILE" 2>/dev/null || true
+  export RECOVERABLE_FAILURES_FILE
   print_banner
   detect_system
   check_platform
@@ -578,8 +609,12 @@ main() {
     report_add "Sistema" "Actualización completa de paquetes" "Omitido"
   fi
 
-  run_module "Personalización Bash" "$ROOT_DIR/scripts/personalizacion_bash.sh"
-  report_add "Personalización" "Configuración Bash"
+  run_module_recoverable "Personalización Bash" "$ROOT_DIR/scripts/personalizacion_bash.sh"
+  if [[ "$RECOVERABLE_STEP_FAILED" -eq 1 ]]; then
+    report_add "Personalización" "Configuración Bash" "Falló / continuado"
+  else
+    report_add "Personalización" "Configuración Bash"
+  fi
 
   if [[ "$ENABLE_SECURITY_BASELINE" -eq 1 ]]; then
     run_module "Seguridad base" "$ROOT_DIR/scripts/security/baseline.sh"
@@ -611,10 +646,14 @@ main() {
   fi
 
   if [[ "$ENABLE_DESKTOP" -eq 1 ]]; then
-    run_module "Escritorio $DESKTOP" "$ROOT_DIR/scripts/desktop/install.sh"
-    report_add "Entorno gráfico" "Escritorio ${DESKTOP^^}"
-    # shellcheck disable=SC2034
-    REBOOT_REQUIRED=1
+    run_module_recoverable "Escritorio $DESKTOP" "$ROOT_DIR/scripts/desktop/install.sh"
+    if [[ "$RECOVERABLE_STEP_FAILED" -eq 1 ]]; then
+      report_add "Entorno gráfico" "Escritorio ${DESKTOP^^}" "Falló / continuado"
+    else
+      report_add "Entorno gráfico" "Escritorio ${DESKTOP^^}"
+      # shellcheck disable=SC2034
+      REBOOT_REQUIRED=1
+    fi
   else
     report_add "Entorno gráfico" "Instalación de escritorio" "Omitido"
   fi
@@ -624,9 +663,13 @@ main() {
   fi
 
   if [[ "$ENABLE_OPTIMIZATION" -eq 1 ]]; then
-    run_module "Optimización perfil $PROFILE" "$ROOT_DIR/scripts/optimization/apply.sh"
-    report_add "Optimización" "Ajustes del perfil $PROFILE"
-    if [[ "$IS_VM" -eq 1 ]]; then
+    run_module_recoverable "Optimización perfil $PROFILE" "$ROOT_DIR/scripts/optimization/apply.sh"
+    if [[ "$RECOVERABLE_STEP_FAILED" -eq 1 ]]; then
+      report_add "Optimización" "Ajustes del perfil $PROFILE" "Falló / continuado"
+    else
+      report_add "Optimización" "Ajustes del perfil $PROFILE"
+    fi
+    if [[ "$IS_VM" -eq 1 && "$RECOVERABLE_STEP_FAILED" -eq 0 ]]; then
       report_add "Optimización" "Ajustes para VM ($VIRTUALIZATION_TYPE)"
     fi
   else
@@ -634,7 +677,7 @@ main() {
   fi
 
   if [[ -n "$EXTRAS" ]]; then
-    run_module "Módulos opcionales" "$ROOT_DIR/scripts/optional/install.sh" "$EXTRAS"
+    run_module_recoverable "Módulos opcionales" "$ROOT_DIR/scripts/optional/install.sh" "$EXTRAS"
     report_optional_modules
   fi
 
@@ -646,14 +689,21 @@ main() {
   fi
 
   if [[ "$ENABLE_AUDIT" -eq 1 ]]; then
-    run_module "Auditoría final del sistema" \
+    run_module_recoverable "Auditoría final del sistema" \
       "$ROOT_DIR/scripts/audit/system-health.sh"
-    report_add "Validación" "Auditoría final del sistema" \
-      "$([[ "$DRY_RUN" -eq 1 ]] && printf 'Simulado' || printf 'Correcto')"
+    if [[ "$RECOVERABLE_STEP_FAILED" -eq 1 ]]; then
+      audit_status="Falló / continuado"
+    elif [[ "$DRY_RUN" -eq 1 ]]; then
+      audit_status="Simulado"
+    else
+      audit_status="Correcto"
+    fi
+    report_add "Validación" "Auditoría final del sistema" "$audit_status"
   else
     report_add "Validación" "Auditoría final del sistema" "Omitido"
   fi
 
+  report_recoverable_failures
   final_summary
 }
 
