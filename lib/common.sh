@@ -404,6 +404,19 @@ final_summary() {
   printf '\n'
   info "Log: $LOG_FILE"
   info "Informe Markdown: $REPORT_FILE"
+
+  local _log_dir _log_owner _log_group
+  _log_dir="$(dirname "$LOG_FILE")"
+  _log_owner="${SUDO_USER:-}"
+  if [[ -n "$_log_owner" ]] && getent passwd "$_log_owner" >/dev/null 2>&1; then
+    _log_group="$(id -gn "$_log_owner" 2>/dev/null || true)"
+    if [[ -n "$_log_group" ]]; then
+      chown -R "$_log_owner:$_log_group" "$_log_dir" 2>/dev/null || true
+      chmod -R u+rwX,g+rX,o-rwx "$_log_dir" 2>/dev/null || true
+      info "Logs transferidos a $_log_owner: $_log_dir"
+    fi
+  fi
+
   if [[ "$REBOOT_REQUIRED" -eq 1 ]]; then
     warn "Se recomienda reiniciar manualmente."
     offer_reboot_if_required

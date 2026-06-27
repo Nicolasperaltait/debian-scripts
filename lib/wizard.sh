@@ -170,6 +170,10 @@ wizard_components() {
   section "Componentes principales" >&2
   info "El perfil recomienda ajustes; cada componente se decide por separado." >&2
 
+  if confirm "¿Aceptar todos los componentes con sus valores por defecto?" "s"; then
+    return 0
+  fi
+
   wizard_component INSTALL_BASE_TOOLS \
     "¿Instalar herramientas generales de administración?" "s"
 
