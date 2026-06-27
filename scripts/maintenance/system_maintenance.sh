@@ -43,7 +43,8 @@ is_tty() {
 # Logger: siempre escribe a archivo; opcionalmente también a pantalla
 VERBOSE=1
 log() {
-  local msg="[$(date +'%F %T')] $*"
+  local msg
+  msg="[$(date +'%F %T')] $*"
   if [[ "$VERBOSE" -eq 1 ]]; then
     echo "$msg" | tee -a "$LOG_FILE"
   else

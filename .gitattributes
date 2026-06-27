@@ -2,6 +2,8 @@
 *.md text eol=lf
 *.conf text eol=lf
 *.sha256 text eol=lf
+.gitattributes text eol=lf
+.shellcheckrc text eol=lf
 
 # Preserve recovered legacy files byte-for-byte.
 legacy-source/** -text

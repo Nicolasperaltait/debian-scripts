@@ -45,7 +45,8 @@ need_root() {
 
 # Decide output según modo (quiet => solo log)
 log() {
-  local msg="[$(date +'%F %T')] $*"
+  local msg
+  msg="[$(date +'%F %T')] $*"
   if [[ "$MODE" == "quiet" ]]; then
     echo "$msg" >>"$LOG_FILE"
   else
@@ -62,6 +63,7 @@ run_cmd() {
 }
 
 START_TS=0
+# shellcheck disable=SC2329
 finalize() {
   local exit_code=$?
   local duration=0

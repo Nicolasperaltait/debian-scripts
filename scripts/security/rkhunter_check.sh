@@ -67,7 +67,8 @@ log_init() {
 }
 
 log() {
-  local msg="[$(ts)] $*"
+  local msg
+  msg="[$(ts)] $*"
   if [[ "$QUIET" -eq 1 ]]; then
     echo "$msg" >>"$LOG_FILE"
   else

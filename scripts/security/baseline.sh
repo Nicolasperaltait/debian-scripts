@@ -50,6 +50,7 @@ if [[ "${ENABLE_SSH:-1}" -eq 1 ]]; then
 fi
 
 if [[ "${ENABLE_AUTO_UPDATES:-1}" -eq 1 ]]; then
+  # shellcheck disable=SC2153
   read -r -a auto_update_packages <<<"$AUTO_UPDATE_PACKAGES"
   apt_install "${auto_update_packages[@]}"
   write_file /etc/apt/apt.conf.d/20auto-upgrades 'APT::Periodic::Update-Package-Lists "1";
@@ -62,6 +63,7 @@ fi
 
 if [[ "${ENABLE_FIREWALL:-1}" -eq 1 ]]; then
   ssh_source=""
+  # shellcheck disable=SC2153
   read -r -a firewall_packages <<<"$FIREWALL_PACKAGES"
   apt_install "${firewall_packages[@]}"
 
