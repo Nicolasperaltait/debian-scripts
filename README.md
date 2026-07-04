@@ -81,7 +81,10 @@ También pregunta si debe actualizar todos los paquetes. En automatización pued
 elegirse explícitamente con `--upgrade-system` o `--skip-upgrade`.
 
 En modo GUI, si no se indica `--desktop`, el instalador recomienda LXQt para
-perfil `baja` y XFCE para perfiles `media`, `alta` o `ultra`. En modo interactivo pregunta
+perfil `baja` y XFCE para perfiles `media`, `alta` o `ultra`. En el wizard,
+GUI implica instalar o completar el escritorio elegido; para auditar una GUI ya
+existente sin tocar el escritorio, usá explícitamente `--skip-components
+desktop`. En modo interactivo pregunta
 si Debian corre dentro de una VM; en automatización usa detección automática o
 `--virtualization vmware|vm|baremetal`. Cuando detecta VMware y se selecciona
 `optimization`, instala Open VM Tools, deshabilita la sincronización horaria de
@@ -224,6 +227,9 @@ SSH ni XRDP.
 - En `gui`, el wizard muestra siempre debloat seguro con tres opciones:
   `ALL` purga todos los candidatos seguros tras la simulación, `YES` permite
   elegir paquetes, y `NO` omite el debloat.
+- Si el escritorio elegido se instala en la misma corrida, el debloat se aplica
+  después de instalarlo y se omite automáticamente si la instalación del
+  escritorio falla.
 - Los prompts usan `Y/N`; se acepta `S` por compatibilidad, pero no se muestra
   como opción principal.
 

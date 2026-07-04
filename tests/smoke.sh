@@ -255,8 +255,8 @@ grep -q '\[Y/n\]' "$confirm_prompt_output"
 rm -f "$confirm_prompt_output"
 
 wizard_components_output="$(mktemp)"
-# Inputs (GUI mode, no cli-tools prompt):
-#   n=tools, n=desktop, n=optimization, n=firewall, s=confirm-skip-firewall,
+# Inputs (GUI mode, no cli-tools/desktop prompt):
+#   n=tools, n=optimization, n=firewall, s=confirm-skip-firewall,
 #   ""=auto-updates(default s), n=hardening, n=confirm-skip-hardening,
 #   ""=ssh(default s), ""=audit(default s)
 printf 'n\nn\nn\nn\ns\n\nn\nn\n\n\n' |
@@ -282,7 +282,7 @@ printf 'n\nn\nn\nn\ns\n\nn\nn\n\n\n' |
       "$ENABLE_OPTIMIZATION" "$ENABLE_FIREWALL" "$ENABLE_AUTO_UPDATES" \
       "$ENABLE_HARDENING" "$ENABLE_SSH" "$ENABLE_AUDIT"
   ' >"$wizard_components_output" 2>&1
-grep -q '^0:0:0:0:0:1:1:1:1$' "$wizard_components_output"
+grep -q '^0:0:1:0:0:1:1:1:1$' "$wizard_components_output"
 rm -f "$wizard_components_output"
 
 profile_matrix_output="$(mktemp)"
@@ -322,9 +322,10 @@ chmod +x "$gui_wizard_bin/dpkg-query"
   printf '1\n'      # escritorio recomendado
   printf 'operador\n'
   printf '\n\n'     # sin usuarios adicionales, upgrade default
-  for _ in 1 2 3 4 5 6 7 8; do printf '\n'; done
+  printf '\n'       # aceptar componentes por defecto
   for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do printf '\n'; done
   for _ in 1 2 3 4 5 6 7; do printf '\n'; done
+  printf '3\n'      # debloat NO
   printf '\n'       # no aplicar plan
 } | PATH="$gui_wizard_bin:$PATH" DEBIAN_SCRIPTS_TEST=1 TEST_DEBIAN_VERSION=13 \
   TEST_RAM_MB=6144 TEST_CPU_THREADS=4 NO_COLOR=1 \
@@ -334,7 +335,7 @@ grep -q 'Paso 2 - Perfil de recursos' "$gui_wizard_output"
 grep -q 'Recursos detectados: 6144 MB RAM (media), 4 hilos CPU (media).' "$gui_wizard_output"
 grep -q 'Aplicaciones GUI' "$gui_wizard_output"
 grep -q 'Debloat seguro' "$gui_wizard_output"
-grep -q 'Debloat:       sin candidatos' "$gui_wizard_output"
+grep -q 'Debloat:       omitido' "$gui_wizard_output"
 ! grep -q 'Escenario del equipo' "$gui_wizard_output"
 rm -f "$gui_wizard_output"
 rm -rf "$gui_wizard_bin"
@@ -358,10 +359,12 @@ printf '1\n' |
     source "'"$ROOT_DIR"'/lib/common.sh"
     source "'"$ROOT_DIR"'/lib/wizard.sh"
     init_ui
+    INSTALL_MODE=gui
     DESKTOP=xfce
+    ENABLE_DESKTOP=1
     wizard_debloat_packages
   ' >"$debloat_wizard_output" 2>/dev/null
-grep -q '^__all__:vim$' "$debloat_wizard_output"
+grep -q '^__all__:vim,xfce4-notes-plugin,mousepad,xfce4-terminal$' "$debloat_wizard_output"
 rm -f "$debloat_wizard_output"
 rm -rf "$debloat_wizard_bin"
 

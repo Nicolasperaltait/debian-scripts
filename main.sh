@@ -354,7 +354,8 @@ run_module() {
     ENABLE_FIREWALL="$ENABLE_FIREWALL" ENABLE_AUTO_UPDATES="$ENABLE_AUTO_UPDATES" \
     ENABLE_SSH="$ENABLE_SSH" SSH_PUBKEY="${SSH_PUBKEY:-}" \
     FIREWALL_SSH_SOURCE="${FIREWALL_SSH_SOURCE:-}" \
-    ARCH="$ARCH" DEBIAN_VERSION="$DEBIAN_VERSION" RAM_MB="$RAM_MB" CPU_THREADS="$CPU_THREADS" \
+    ARCH="$ARCH" DEBIAN_VERSION="$DEBIAN_VERSION" DEBIAN_CODENAME="$DEBIAN_CODENAME" \
+    RAM_MB="$RAM_MB" CPU_THREADS="$CPU_THREADS" \
     IS_VM="$IS_VM" VIRTUALIZATION_TYPE="$VIRTUALIZATION_TYPE" \
     bash "$script" "$@"; then
     ok "$label"
@@ -671,6 +672,14 @@ main() {
     run_module_recoverable "Escritorio $DESKTOP" "$ROOT_DIR/scripts/desktop/install.sh"
     if [[ "$RECOVERABLE_STEP_FAILED" -eq 1 ]]; then
       report_add "Entorno gráfico" "Escritorio ${DESKTOP^^}" "Falló / continuado"
+      if [[ ",$EXTRAS," == *,debloat,* ]]; then
+        warn "Se omite debloat porque el escritorio $DESKTOP no quedó instalado correctamente."
+        EXTRAS="$(csv_remove_item "$EXTRAS" "debloat")"
+        DEBLOAT_STATUS="omitido por fallo de escritorio"
+        DEBLOAT_MODE="confirm"
+        report_add "Mantenimiento" "Debloat seguro (${DEBLOAT_PACKAGES:-sin selección})" \
+          "Omitido por fallo de escritorio"
+      fi
     else
       report_add "Entorno gráfico" "Escritorio ${DESKTOP^^}"
       # shellcheck disable=SC2034

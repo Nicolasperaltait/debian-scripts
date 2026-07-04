@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+if [[ -z "${ROOT_DIR:-}" ]]; then
+  ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
+
 source "$ROOT_DIR/config/packages.conf"
 
 checklist_to_csv() {
@@ -185,8 +189,8 @@ wizard_components() {
   fi
 
   if [[ "$INSTALL_MODE" == "gui" ]]; then
-    wizard_component ENABLE_DESKTOP \
-      "¿Instalar o completar el escritorio $DESKTOP?" "s"
+    ENABLE_DESKTOP=1
+    info "Modo GUI: se instalará o completará el escritorio $DESKTOP." >&2
   else
     ENABLE_DESKTOP=0
   fi
@@ -261,9 +265,27 @@ debloat_candidates_for_desktop() {
   printf '%s' "$list"
 }
 
+debloat_candidate_installed() {
+  local package="$1"
+
+  dpkg-query -W -f='${Status}\n' "$package" 2>/dev/null | grep -q 'install ok installed'
+}
+
+debloat_candidate_planned_by_desktop() {
+  local package="$1"
+
+  [[ "${INSTALL_MODE:-}" == "gui" && "${ENABLE_DESKTOP:-0}" -eq 1 ]] || return 1
+  case "${DESKTOP:-}" in
+    xfce) [[ " $DEBLOAT_CANDIDATES_XFCE " == *" $package "* ]] ;;
+    lxqt) [[ " $DEBLOAT_CANDIDATES_LXQT " == *" $package "* ]] ;;
+    *) return 1 ;;
+  esac
+}
+
 wizard_debloat_packages() {
   local option package
   local joined=""
+  local note=""
   local -a options=()
   local -a candidates=()
   local selection=""
@@ -274,9 +296,14 @@ wizard_debloat_packages() {
       warn "Se omite candidato protegido de debloat: $package" >&2
       continue
     fi
-    if dpkg-query -W -f='${Status}\n' "$package" 2>/dev/null | grep -q 'install ok installed'; then
+    if debloat_candidate_installed "$package"; then
+      note="Instalado; se audita antes de purgar"
       candidates+=("$package")
-      options+=("$package" "Candidata de debloat" OFF)
+      options+=("$package" "$note" OFF)
+    elif debloat_candidate_planned_by_desktop "$package"; then
+      note="Puede quedar instalado por el escritorio; se audita después"
+      candidates+=("$package")
+      options+=("$package" "$note" OFF)
     fi
   done
 

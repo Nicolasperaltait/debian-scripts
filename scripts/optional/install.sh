@@ -355,6 +355,7 @@ run_maintenance() {
 run_debloat() {
   local package simulate_output removed_package
   local -a packages=()
+  local -a installed_packages=()
 
   [[ -n "${DEBLOAT_PACKAGES:-}" ]] || fail "Debloat requiere DEBLOAT_PACKAGES."
   IFS=',' read -r -a packages <<<"$DEBLOAT_PACKAGES"
@@ -362,9 +363,32 @@ run_debloat() {
   for package in "${packages[@]}"; do
     is_protected_debloat_package "$package" &&
       fail "Debloat rechazado: $package forma parte de un conjunto protegido."
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      installed_packages+=("$package")
+    elif command -v dpkg-query >/dev/null 2>&1; then
+      if dpkg-query -W -f='${Status}\n' "$package" 2>/dev/null | grep -q 'install ok installed'; then
+        installed_packages+=("$package")
+      else
+        info "Debloat: se omite paquete no instalado: $package"
+      fi
+    else
+      installed_packages+=("$package")
+    fi
   done
 
+  if ((${#installed_packages[@]} == 0)); then
+    info "Debloat: no hay candidatos instalados para purgar."
+    return 0
+  fi
+  packages=("${installed_packages[@]}")
+
   section "Debloat seguro - simulación"
+  if ! command -v apt-get >/dev/null 2>&1; then
+    [[ "$DRY_RUN" -eq 1 ]] || fail "apt-get no está disponible para simular debloat."
+    info "DRY-RUN: apt-get -s purge ${packages[*]}"
+    info "Debloat quedó en modo auditoría/simulación; no se aplicaron cambios."
+    return 0
+  fi
   simulate_output="$(apt-get -s purge "${packages[@]}" 2>&1 || true)"
   printf '%s\n' "$simulate_output"
 

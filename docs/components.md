@@ -35,6 +35,11 @@ sudo bash main.sh \
 
 Todo componente no listado queda omitido.
 
+En el wizard interactivo, `gui` mantiene `desktop` habilitado para evitar un
+plan gráfico sin entorno instalado. La omisión de `desktop` queda reservada para
+CLI explícita, por ejemplo cuando ya existe una GUI y solo se quieren ejecutar
+otros componentes.
+
 ## Exclusiones
 
 ```bash

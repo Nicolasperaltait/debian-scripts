@@ -48,7 +48,9 @@ confirm() {
   local suffix="[y/N]" answer normalized_default normalized_answer
   normalized_default="${default,,}"
   [[ "$normalized_default" =~ ^(s|y|yes|si|sí)$ ]] && suffix="[Y/n]"
-  read -r -p "$prompt $suffix " answer
+  printf '%s %s ' "$prompt" "$suffix" >&2
+  read -r answer
+  [[ -t 0 ]] || printf '\n' >&2
   answer="${answer:-$default}"
   normalized_answer="${answer,,}"
   [[ "$normalized_answer" =~ ^(s|y|yes|si|sí)$ ]]
